@@ -1,6 +1,6 @@
 # KartHub - Multi-Vendor E-Commerce Marketplace (DBMS Course Project)
 
-**Team:** <Team ID>  |  **Members:** Vedansh - 2024A3PS0432>, Yashavanth - 2024A7PS0006H, Rashi - 2024A3PS0424H
+**Team:** <Team ID>  |  **Members:** Vedansh - 2024A3PS0432>, Yashavanth - 2024A7PS0006H, Rashi - 2024A3PS0412H
 
 ## Description
 A marketplace where independent sellers list products from a shared catalogue, customers search and compare
