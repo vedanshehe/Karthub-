@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # KartHub - Multi-Vendor E-Commerce Marketplace (DBMS Course Project)
 
 **Team:** <Team ID>  |  **Members:** <Name - ID>, <Name - ID>, <Name - ID>
