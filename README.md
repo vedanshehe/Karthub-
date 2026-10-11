@@ -1,6 +1,6 @@
 # KartHub - Multi-Vendor E-Commerce Marketplace (DBMS Course Project)
 
-**Team:** <Team ID>  |  **Members:** <Name - ID>, <Name - ID>, <Name - ID>
+**Team:** <Team ID>  |  **Members:** Vedansh - 2024A3PS0432>, Yashavanth - 2024A7PS0006H, Rashi - 2024A3PS0424H
 
 ## Description
 A marketplace where independent sellers list products from a shared catalogue, customers search and compare
@@ -34,9 +34,9 @@ React (front end) <-> Node.js/Express REST API (backend) <-> PostgreSQL 15 (via 
 ## Member contributions
 | Member | Contribution so far |
 |---|---|
-| <Name> | ER/EER design, schema.sql |
-| <Name> | Application design, backend skeleton |
-| <Name> | Seed data plan, README, front-end wireframes |
+| Yashavanth | ER/EER design, schema.sql |
+| Vedansh | Application design, backend skeleton |
+| Rashi | Seed data plan, README, front-end wireframes |
 
 ## Setup
 ```
