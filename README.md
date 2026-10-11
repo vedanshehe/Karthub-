@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # KartHub - Multi-Vendor E-Commerce Marketplace (DBMS Course Project)
 
 **Team:** <Team ID>  |  **Members:** <Name - ID>, <Name - ID>, <Name - ID>
@@ -56,3 +57,7 @@ cd backend && cp .env.example .env && npm install && npm start      # API on :40
 | GET/PUT/DELETE | /api/cart | JWT required |
 | POST | /api/orders/checkout | W1 transaction: lock stock, coupon check, order + items + payment, clear cart |
 | GET | /api/orders | order history via v_order_total |
+=======
+# Karthub-
+A Multi-Vendor E-Commerce Marketplace
+>>>>>>> 3953020e1602ce745c635443b78d164f23998ad3
