@@ -1,0 +1,210 @@
+SET
+==============================================================
+E1  Order history  (index idx_orders_user_time on orders(user_id, placed_at DESC))
+    query: GET /api/orders  -> one user's orders, newest first
+==============================================================
+--- WITH the index
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Limit (actual rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using idx_orders_user_time on orders (actual rows=20.00 loops=1)
+         Index Cond: (user_id = 12)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=46
+ Planning Time: 3.581 ms
+ Execution Time: 0.086 ms
+(10 rows)
+
+--- WITHOUT the index
+                          QUERY PLAN                          
+--------------------------------------------------------------
+ Limit (actual rows=20.00 loops=1)
+   Buffers: shared hit=737
+   ->  Sort (actual rows=20.00 loops=1)
+         Sort Key: placed_at DESC
+         Sort Method: top-N heapsort  Memory: 27kB
+         Buffers: shared hit=737
+         ->  Seq Scan on orders (actual rows=3231.00 loops=1)
+               Filter: (user_id = 12)
+               Rows Removed by Filter: 96919
+               Buffers: shared hit=737
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.779 ms
+ Execution Time: 3.922 ms
+(14 rows)
+
+
+==============================================================
+E2  Full-text product search  (GIN index idx_product_fts)
+    query: Q1 / GET /api/products?q=...
+==============================================================
+--- WITH the GIN index
+                                                                                    QUERY PLAN                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on product (actual rows=400.00 loops=1)
+   Recheck Cond: (to_tsvector('english'::regconfig, (((name)::text || ' '::text) || (COALESCE(brand, ''::character varying))::text)) @@ '''brand8'' & ''smartphon'''::tsquery)
+   Heap Blocks: exact=400
+   Buffers: shared hit=508
+   ->  Bitmap Index Scan on idx_product_fts (actual rows=400.00 loops=1)
+         Index Cond: (to_tsvector('english'::regconfig, (((name)::text || ' '::text) || (COALESCE(brand, ''::character varying))::text)) @@ '''brand8'' & ''smartphon'''::tsquery)
+         Index Searches: 1
+         Buffers: shared hit=108
+ Planning:
+   Buffers: shared hit=40
+ Planning Time: 4.274 ms
+ Execution Time: 1.354 ms
+(12 rows)
+
+--- WITHOUT the index
+                                                                               QUERY PLAN                                                                                
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Seq Scan on product (actual rows=400.00 loops=1)
+   Filter: (to_tsvector('english'::regconfig, (((name)::text || ' '::text) || (COALESCE(brand, ''::character varying))::text)) @@ '''brand8'' & ''smartphon'''::tsquery)
+   Rows Removed by Filter: 59700
+   Buffers: shared hit=501
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.492 ms
+ Execution Time: 108.999 ms
+(8 rows)
+
+
+==============================================================
+E3  Price comparison  (index idx_listing_product_price on listing(product_id, price))
+    query: GET /api/products/:id/offers
+    listing is limited to one row per (seller, product), so scale it with extra sellers
+==============================================================
+--- WITH the index
+                                           QUERY PLAN                                            
+-------------------------------------------------------------------------------------------------
+ Limit (actual rows=10.00 loops=1)
+   Buffers: shared hit=43
+   ->  Nested Loop (actual rows=10.00 loops=1)
+         Buffers: shared hit=43
+         ->  Index Scan using idx_listing_product_price on listing l (actual rows=10.00 loops=1)
+               Index Cond: (product_id = 17)
+               Filter: is_active
+               Index Searches: 1
+               Buffers: shared hit=13
+         ->  Memoize (actual rows=1.00 loops=10)
+               Cache Key: l.seller_id
+               Cache Mode: logical
+               Hits: 0  Misses: 10  Evictions: 0  Overflows: 0  Memory Usage: 2kB
+               Buffers: shared hit=30
+               ->  Index Scan using seller_pkey on seller s (actual rows=1.00 loops=10)
+                     Index Cond: (seller_id = l.seller_id)
+                     Index Searches: 10
+                     Buffers: shared hit=30
+ Planning:
+   Buffers: shared hit=112
+ Planning Time: 5.028 ms
+ Execution Time: 0.499 ms
+(22 rows)
+
+--- WITHOUT the index
+                                             QUERY PLAN                                             
+----------------------------------------------------------------------------------------------------
+ Limit (actual rows=10.00 loops=1)
+   Buffers: shared hit=458
+   ->  Sort (actual rows=10.00 loops=1)
+         Sort Key: l.price
+         Sort Method: top-N heapsort  Memory: 25kB
+         Buffers: shared hit=458
+         ->  Hash Join (actual rows=1502.00 loops=1)
+               Hash Cond: (l.seller_id = s.seller_id)
+               Buffers: shared hit=458
+               ->  Seq Scan on listing l (actual rows=1502.00 loops=1)
+                     Filter: (is_active AND (product_id = 17))
+                     Rows Removed by Filter: 58748
+                     Buffers: shared hit=444
+               ->  Hash (actual rows=1508.00 loops=1)
+                     Buckets: 2048 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 93kB
+                     Buffers: shared hit=14
+                     ->  Seq Scan on seller s (actual rows=1508.00 loops=1)
+                           Buffers: shared hit=14
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 2.588 ms
+ Execution Time: 16.167 ms
+(22 rows)
+
+
+==============================================================
+E4  Checkout row-lock query uses the primary keys (no extra index needed)
+==============================================================
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ LockRows (actual rows=0.00 loops=1)
+   Buffers: shared hit=1
+   ->  Sort (actual rows=0.00 loops=1)
+         Sort Key: ci.listing_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=1
+         ->  Nested Loop (actual rows=0.00 loops=1)
+               Buffers: shared hit=1
+               ->  Nested Loop (actual rows=0.00 loops=1)
+                     Buffers: shared hit=1
+                     ->  Bitmap Heap Scan on cart_item ci (actual rows=0.00 loops=1)
+                           Recheck Cond: (user_id = 12)
+                           Buffers: shared hit=1
+                           ->  Bitmap Index Scan on cart_item_pkey (actual rows=0.00 loops=1)
+                                 Index Cond: (user_id = 12)
+                                 Index Searches: 1
+                                 Buffers: shared hit=1
+                     ->  Index Scan using listing_pkey on listing l (never executed)
+                           Index Cond: (listing_id = ci.listing_id)
+                           Index Searches: 0
+               ->  Index Scan using product_pkey on product p (never executed)
+                     Index Cond: (product_id = l.product_id)
+                     Index Searches: 0
+ Planning:
+   Buffers: shared hit=232
+ Planning Time: 11.736 ms
+ Execution Time: 0.243 ms
+(27 rows)
+
+
+==============================================================
+E5  Q5 (correlated subquery) and Q3 (CTE + window function) plans on the current data
+==============================================================
+                                                  QUERY PLAN                                                   
+---------------------------------------------------------------------------------------------------------------
+ Nested Loop (actual rows=105.00 loops=1)
+   Buffers: shared hit=4151
+   ->  Nested Loop (actual rows=105.00 loops=1)
+         Buffers: shared hit=3836
+         ->  Seq Scan on listing l (actual rows=105.00 loops=1)
+               Filter: (is_active AND (price > (SubPlan 1)))
+               Rows Removed by Filter: 145
+               Buffers: shared hit=3521
+               SubPlan 1
+                 ->  Aggregate (actual rows=1.00 loops=240)
+                       Buffers: shared hit=3077
+                       ->  Bitmap Heap Scan on listing l2 (actual rows=2.55 loops=240)
+                             Recheck Cond: (product_id = l.product_id)
+                             Filter: is_active
+                             Rows Removed by Filter: 0
+                             Heap Blocks: exact=1632
+                             Buffers: shared hit=3077
+                             ->  Bitmap Index Scan on idx_listing_product_price (actual rows=602.61 loops=240)
+                                   Index Cond: (product_id = l.product_id)
+                                   Index Searches: 240
+                                   Buffers: shared hit=1445
+         ->  Index Scan using product_pkey on product p (actual rows=1.00 loops=105)
+               Index Cond: (product_id = l.product_id)
+               Index Searches: 105
+               Buffers: shared hit=315
+   ->  Index Scan using seller_pkey on seller s (actual rows=1.00 loops=105)
+         Index Cond: (seller_id = l.seller_id)
+         Index Searches: 105
+         Buffers: shared hit=315
+ Planning:
+   Buffers: shared hit=181
+ Planning Time: 4.597 ms
+ Execution Time: 36.050 ms
+(33 rows)
+
