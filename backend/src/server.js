@@ -5,6 +5,10 @@ import auth from './routes/auth.js';
 import catalogue from './routes/catalogue.js';
 import cart from './routes/cart.js';
 import orders from './routes/orders.js';
+import seller from './routes/seller.js';
+import reviews from './routes/reviews.js';
+import addresses from './routes/addresses.js';
+import admin from './routes/admin.js';
 
 const app = express();
 app.use(cors());
@@ -12,15 +16,24 @@ app.use(express.json());
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', auth);
-app.use('/api', catalogue);
 app.use('/api/cart', cart);
 app.use('/api/orders', orders);
+app.use('/api/seller', seller);
+app.use('/api/reviews', reviews);
+app.use('/api/addresses', addresses);
+app.use('/api/admin', admin);
+app.use('/api', catalogue);
 
-// Translate DBMS constraint violations into clean HTTP errors (the DB is the source of truth).
+// Translate DBMS errors into clean HTTP errors (the DB is the source of truth).
+// 23505/23514/23503 -> 409, trigger errors (P0001) -> 422, as in the application design document.
 app.use((err, _req, res, _next) => {
-  const map = { '23505': [409, 'Already exists (unique constraint)'], '23514': [400, 'Value violates a rule (check constraint)'],
-                '23503': [400, 'Referenced record does not exist or is still in use'], '23502': [400, 'A required field is missing'],
-                'P0001': [409, err.message] };
+  const map = { '23505': [409, 'Already exists (unique constraint)'],
+                '23514': [409, 'Value violates a rule (check constraint)'],
+                '23503': [409, 'Referenced record does not exist or is still in use'],
+                '23502': [400, 'A required field is missing'],
+                '22P02': [400, 'A value has the wrong format'],
+                '22003': [400, 'A number is out of range'],
+                'P0001': [422, err.message] };
   const [status, msg] = err.status ? [err.status, err.message] : map[err.code] || [500, 'Server error'];
   if (status === 500) console.error(err);
   res.status(status).json({ error: msg, ...(err.constraint && { constraint: err.constraint }) });
