@@ -39,6 +39,17 @@ r.put('/listings/:id', wrap(async (req, res) => {
   res.json(rows[0]);
 }));
 
+// GET /api/seller/catalogue?q=  -> catalogue products a seller can create a listing for
+r.get('/catalogue', wrap(async (req, res) => {
+  const { rows } = await query(`
+    SELECT p.product_id, p.name, p.brand, c.name AS category,
+           EXISTS (SELECT 1 FROM listing l WHERE l.product_id = p.product_id AND l.seller_id = $2) AS already_listed
+    FROM product p JOIN category c ON c.category_id = p.category_id
+    WHERE ($1::text IS NULL OR p.name ILIKE '%' || $1 || '%' OR p.brand ILIKE '%' || $1 || '%')
+    ORDER BY p.name LIMIT 30`, [req.query.q || null, req.user.id]);
+  res.json(rows);
+}));
+
 // GET /api/seller/order-items?status=PENDING  -> order lines containing this seller's listings
 r.get('/order-items', wrap(async (req, res) => {
   const { rows } = await query(`

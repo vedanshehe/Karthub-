@@ -1,0 +1,10 @@
+body{font-family:system-ui,sans-serif;margin:0;color:#222;background:#f6f7f9}
+nav{display:flex;gap:14px;align-items:center;padding:10px 20px;background:#1f3a5f;color:#fff}
+nav a{color:#fff;text-decoration:none;font-weight:600}.sp{flex:1}
+main{max-width:1000px;margin:20px auto;padding:0 16px}
+table{border-collapse:collapse;width:100%;background:#fff;margin:10px 0;font-size:14px}
+th,td{border:1px solid #dde;padding:6px 8px;text-align:left}th{background:#eef1f6}
+input,select,button{padding:6px 8px;margin:3px 4px 3px 0;font:inherit}
+button{cursor:pointer;background:#1f3a5f;color:#fff;border:0;border-radius:4px}
+.row{display:flex;flex-wrap:wrap;align-items:center}.err{color:#b00020}.ok{color:#1b7a2f}.mut{color:#777}
+.tabs button{background:#cfd8e6;color:#222}.tabs .on{background:#1f3a5f;color:#fff}
