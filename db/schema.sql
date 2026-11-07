@@ -16,7 +16,7 @@ CREATE TABLE app_user (
 CREATE TABLE seller (                       -- ISA app_user
   seller_id   INT PRIMARY KEY REFERENCES app_user(user_id) ON DELETE CASCADE,
   store_name  VARCHAR(80) NOT NULL UNIQUE,
-  gst_no      CHAR(15)    NOT NULL UNIQUE,
+  gst_no      CHAR(15)    NOT NULL UNIQUE CHECK (gst_no ~ '^[0-9A-Z]{15}$'),
   is_verified BOOLEAN     NOT NULL DEFAULT FALSE,
   joined_on   DATE        NOT NULL DEFAULT CURRENT_DATE
 );
@@ -45,7 +45,9 @@ CREATE TABLE product (                      -- catalogue entry, seller-independe
   name        VARCHAR(150) NOT NULL,
   brand       VARCHAR(60),
   description TEXT,
-  UNIQUE (name, brand)
+  -- PostgreSQL 15+ treats NULL values as equal here, so a catalogue item
+  -- without a brand cannot be entered twice under the same name.
+  UNIQUE NULLS NOT DISTINCT (name, brand)
 );
 
 CREATE TABLE listing (                      -- seller x product (M:N with attributes)
@@ -125,10 +127,15 @@ CREATE INDEX idx_product_fts ON product USING GIN (to_tsvector('english', name |
 
 -- ---------- views ----------
 CREATE VIEW v_order_total AS
-  SELECT o.order_id, SUM(oi.quantity*oi.unit_price) AS gross,
-         ROUND(SUM(oi.quantity*oi.unit_price) * (1 - COALESCE(c.discount_pct,0)/100), 2) AS payable
+  SELECT o.order_id,
+         SUM(oi.quantity * oi.unit_price) AS gross,
+         ROUND(SUM(oi.quantity * oi.unit_price) * (1 - COALESCE(c.discount_pct, 0) / 100), 2) AS payable,
+         COALESCE(SUM(CASE WHEN oi.item_status NOT IN ('CANCELLED','RETURNED') THEN oi.quantity * oi.unit_price ELSE 0 END), 0) AS active_gross,
+         ROUND(COALESCE(SUM(CASE WHEN oi.item_status NOT IN ('CANCELLED','RETURNED') THEN oi.quantity * oi.unit_price ELSE 0 END), 0) * (1 - COALESCE(c.discount_pct, 0) / 100), 2) AS active_payable,
+         COALESCE(SUM(CASE WHEN oi.item_status IN ('CANCELLED','RETURNED') THEN oi.quantity * oi.unit_price ELSE 0 END), 0) AS cancelled_gross
   FROM orders o JOIN order_item oi USING(order_id)
-  LEFT JOIN coupon c ON c.code = o.coupon_code GROUP BY o.order_id, c.discount_pct;
+  LEFT JOIN coupon c ON c.code = o.coupon_code
+  GROUP BY o.order_id, c.discount_pct;
 
 -- ---------- trigger: reviews only for delivered items ----------
 CREATE FUNCTION fn_review_only_delivered() RETURNS trigger AS $$

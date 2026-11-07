@@ -52,7 +52,7 @@ karthub/
 │   ├── dev_seed.sql              tiny seed (4 categories, 4 products), alternative to bulk_test_data.sql
 │   ├── setup.sql                 runs the four files above in the right order
 │   ├── queries.sql               the six SQL queries Q1-Q6
-│   ├── tests.sql                 40 database integrity tests (rolls itself back)
+│   ├── tests.sql                 41 database integrity tests (rolls itself back)
 │   └── explain.sql               EXPLAIN ANALYZE: plans with and without each index
 ├── backend/
 │   ├── package.json              scripts: start, dev, test
@@ -156,7 +156,7 @@ Registering through the UI always creates a customer, or a seller if you tick "R
 
 | What | Command (run from) | Expected |
 |---|---|---|
-| Database integrity (40 tests) | `psql -U postgres -d karthub -P pager=off -f db/tests.sql` (repo root) | `passed 40, failed 0`. Rolls back, so data is untouched |
+| Database integrity (41 tests) | `psql -U postgres -d karthub -P pager=off -f db/tests.sql` (repo root) | `passed 41, failed 0`. Rolls back, so data is untouched |
 | The six SQL queries | `psql -U postgres -d karthub -P pager=off -f db/queries.sql` (repo root) | Result tables for Q1-Q6 |
 | EXPLAIN ANALYZE evidence | `psql -U postgres -d karthub -o docs/explain_results.txt -f db/explain.sql` (repo root) | Plans with and without each index; data unchanged |
 | API end-to-end (25 checks) | `npm test` (in `backend/`, API must be running) | `All checks passed` |

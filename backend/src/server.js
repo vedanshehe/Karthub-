@@ -1,4 +1,10 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import auth from './routes/auth.js';
@@ -9,6 +15,9 @@ import seller from './routes/seller.js';
 import reviews from './routes/reviews.js';
 import addresses from './routes/addresses.js';
 import admin from './routes/admin.js';
+import { assertJwtConfigured } from './auth.js';
+
+assertJwtConfigured();
 
 const app = express();
 app.use(cors());

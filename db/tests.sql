@@ -97,6 +97,11 @@ CALL pg_temp.expect_fail('A11 coupon discount is limited to 1-90 percent',
   $q$INSERT INTO coupon(code, discount_pct, valid_from, valid_to, max_uses) VALUES ('T_BAD', 95, CURRENT_DATE, CURRENT_DATE, 1)$q$, '23514');
 CALL pg_temp.expect_fail('A12 a category cannot be its own parent (CHECK)',
   $q$INSERT INTO category(category_id, name, parent_id) VALUES (99999, 'T self', 99999)$q$, '23514');
+CALL pg_temp.expect_fail('A13 duplicate unbranded catalogue products are refused',
+  $q$WITH first_copy AS (
+       INSERT INTO product(category_id, name, brand) VALUES (pg_temp.f('cat'), 'T Unbranded Product', NULL)
+     )
+     INSERT INTO product(category_id, name, brand) VALUES (pg_temp.f('cat'), 'T Unbranded Product', NULL)$q$, '23505');
 
 -- ---------------- B. triggers and deferred rules ----------------
 CALL pg_temp.expect_fail('B1  category cycle of length 3 is refused (trg_category_cycle)',

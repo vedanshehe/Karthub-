@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { query } from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireRole } from '../auth.js';
 import { HttpError, wrap } from '../errors.js';
 
 const r = Router();
-r.use(requireAuth);
+r.use(requireAuth, requireRole('customer'));
 
 // POST /api/reviews { order_id, item_no, rating, comment? }
 // Ownership is checked here; "only delivered" (P0001 -> 422) and "only once" (UNIQUE -> 409) are enforced by the DB.

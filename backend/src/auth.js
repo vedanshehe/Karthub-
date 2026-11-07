@@ -1,12 +1,20 @@
 import jwt from 'jsonwebtoken';
 
-const SECRET = process.env.JWT_SECRET || 'dev-secret';
-export const sign = user => jwt.sign({ id: user.user_id, role: user.role }, SECRET, { expiresIn: '8h' });
+function jwtSecret() {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET must be configured');
+  }
+  return process.env.JWT_SECRET;
+}
+
+export const assertJwtConfigured = () => { jwtSecret(); };
+
+export const sign = user => jwt.sign({ id: user.user_id, role: user.role }, jwtSecret(), { expiresIn: '8h' });
 
 export function requireAuth(req, res, next) {
   const h = req.headers.authorization || '';
   try {
-    req.user = jwt.verify(h.replace(/^Bearer /, ''), SECRET);
+    req.user = jwt.verify(h.replace(/^Bearer /, ''), jwtSecret());
     next();
   } catch {
     res.status(401).json({ error: 'Login required' });
