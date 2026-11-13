@@ -16,7 +16,8 @@ r.post('/register', wrap(async (req, res) => {
     throw new HttpError(400, 'full_name, email and a password of 6+ chars are required');
   }
   const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+  const emailRegex = /^[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z]{2,})+$/;
+  if (!emailRegex.test(cleanEmail) || cleanEmail.includes('.@') || cleanEmail.includes('@.')) {
     throw new HttpError(400, 'A valid email address is required');
   }
   let cleanPhone = null;

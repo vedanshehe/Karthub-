@@ -22,6 +22,9 @@ r.get('/', wrap(async (req, res) => {
 
 // PUT /api/cart { listing_id, quantity }  -> add or set quantity (upsert on composite PK)
 r.put('/', wrap(async (req, res) => {
+  if (typeof req.body.listing_id === 'boolean' || typeof req.body.quantity === 'boolean') {
+    throw new HttpError(400, 'boolean values are not allowed for listing_id or quantity');
+  }
   const listingId = Number(req.body.listing_id);
   const qty = Number(req.body.quantity);
 

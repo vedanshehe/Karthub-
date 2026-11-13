@@ -71,6 +71,9 @@ r.post('/coupons', wrap(async (req, res) => {
     throw new HttpError(400, 'code, discount_pct, valid_from, valid_to and max_uses are required');
   }
   const cleanCode = String(code).trim().toUpperCase();
+  if (cleanCode.length > 20) {
+    throw new HttpError(400, 'Coupon code cannot exceed 20 characters');
+  }
   const { rows } = await query(`
     INSERT INTO coupon(code, discount_pct, min_order_value, valid_from, valid_to, max_uses)
     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,

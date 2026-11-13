@@ -42,6 +42,7 @@ app.use((err, _req, res, _next) => {
                 '23502': [400, 'A required field is missing'],
                 '22P02': [400, 'A value has the wrong format'],
                 '22003': [400, 'A number is out of range'],
+                '22001': [400, 'A value is too long'],
                 'P0001': [422, err.message] };
   const [status, msg] = err.status ? [err.status, err.message] : map[err.code] || [500, 'Server error'];
   if (status === 500) console.error(err);
