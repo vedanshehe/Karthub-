@@ -11,8 +11,6 @@ export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   options: '-c search_path=karthub',   // every connection uses the project schema
 });
-// every connection uses the project schema
-pool.on('connect', c => c.query('SET search_path = karthub'));
 
 export const query = (text, params) => pool.query(text, params);
 

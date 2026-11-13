@@ -36,6 +36,10 @@ r.post('/listings', wrap(async (req, res) => {
 
 // PUT /api/seller/listings/:id { price?, stock_qty?, is_active? }
 r.put('/listings/:id', wrap(async (req, res) => {
+  const listingId = Number(req.params.id);
+  if (!Number.isInteger(listingId)) {
+    throw new HttpError(400, 'listing id must be an integer');
+  }
   const { price, stock_qty, is_active } = req.body;
   const numPrice = price != null ? Number(price) : null;
   const numStock = stock_qty != null ? Number(stock_qty) : null;
@@ -90,21 +94,26 @@ r.get('/order-items', wrap(async (req, res) => {
 // PUT /api/seller/order-items/:order/:item { status: SHIPPED | DELIVERED }
 // Allowed moves: PENDING -> SHIPPED -> DELIVERED. Order status is rolled up from its lines.
 r.put('/order-items/:order/:item', wrap(async (req, res) => {
+  const orderId = Number(req.params.order);
+  const itemNo = Number(req.params.item);
+  if (!Number.isInteger(orderId) || !Number.isInteger(itemNo)) {
+    throw new HttpError(400, 'order and item must be integers');
+  }
   const needs = { SHIPPED: 'PENDING', DELIVERED: 'SHIPPED' }[req.body.status];
   if (!needs) throw new HttpError(400, 'status must be SHIPPED or DELIVERED');
 
   const out = await withTx(async c => {
-    await c.query('SELECT 1 FROM orders WHERE order_id=$1 FOR UPDATE', [req.params.order]);
+    await c.query('SELECT 1 FROM orders WHERE order_id=$1 FOR UPDATE', [orderId]);
     const upd = await c.query(`
       UPDATE order_item oi SET item_status=$3
       FROM listing l
       WHERE l.listing_id = oi.listing_id AND l.seller_id=$4
         AND oi.order_id=$1 AND oi.item_no=$2 AND oi.item_status=$5
-      RETURNING oi.item_no`, [req.params.order, req.params.item, req.body.status, req.user.id, needs]);
+      RETURNING oi.item_no`, [orderId, itemNo, req.body.status, req.user.id, needs]);
     if (!upd.rowCount) {
       const cur = await c.query(`
         SELECT oi.item_status FROM order_item oi JOIN listing l ON l.listing_id = oi.listing_id
-        WHERE oi.order_id=$1 AND oi.item_no=$2 AND l.seller_id=$3`, [req.params.order, req.params.item, req.user.id]);
+        WHERE oi.order_id=$1 AND oi.item_no=$2 AND l.seller_id=$3`, [orderId, itemNo, req.user.id]);
       if (!cur.rowCount) throw new HttpError(404, 'Order item not found');
       throw new HttpError(409, `Item is ${cur.rows[0].item_status}; cannot move to ${req.body.status}`);
     }
@@ -114,15 +123,15 @@ r.put('/order-items/:order/:item', wrap(async (req, res) => {
         WHEN NOT EXISTS (SELECT 1 FROM order_item WHERE order_id=o.order_id AND item_status IN ('PENDING','SHIPPED')) THEN 'DELIVERED'
         WHEN EXISTS (SELECT 1 FROM order_item WHERE order_id=o.order_id AND item_status IN ('SHIPPED','DELIVERED')) THEN 'SHIPPED'
         ELSE o.status END
-      WHERE o.order_id=$1 AND o.status <> 'CANCELLED'`, [req.params.order]);
+      WHERE o.order_id=$1 AND o.status <> 'CANCELLED'`, [orderId]);
 
     // Cash on delivery is collected once everything has been delivered
     await c.query(`
       UPDATE payment SET status='SUCCESS', paid_at=now()
       WHERE order_id=$1 AND method='COD' AND status='PENDING'
-        AND (SELECT status FROM orders WHERE order_id=$1) = 'DELIVERED'`, [req.params.order]);
+        AND (SELECT status FROM orders WHERE order_id=$1) = 'DELIVERED'`, [orderId]);
 
-    return { order_id: Number(req.params.order), item_no: Number(req.params.item), item_status: req.body.status };
+    return { order_id: orderId, item_no: itemNo, item_status: req.body.status };
   });
   res.json(out);
 }));

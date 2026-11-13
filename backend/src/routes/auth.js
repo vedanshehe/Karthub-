@@ -15,22 +15,28 @@ r.post('/register', wrap(async (req, res) => {
       typeof password !== 'string' || password.length < 6) {
     throw new HttpError(400, 'full_name, email and a password of 6+ chars are required');
   }
-  if (phone != null && typeof phone !== 'string') {
-    throw new HttpError(400, 'phone must be a 10-digit string');
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+    throw new HttpError(400, 'A valid email address is required');
+  }
+  let cleanPhone = null;
+  if (phone != null && String(phone).trim() !== '') {
+    cleanPhone = String(phone).trim();
+    if (!/^[0-9]{10}$/.test(cleanPhone)) {
+      throw new HttpError(400, 'phone must be a 10-digit string');
+    }
   }
 
   // Check partial seller registration
-  if ((store_name && !gst_no) || (!store_name && gst_no)) {
+  const trimmedStore = typeof store_name === 'string' ? store_name.trim() : '';
+  const trimmedGst = typeof gst_no === 'string' ? String(gst_no).trim().toUpperCase() : '';
+  if ((trimmedStore && !trimmedGst) || (!trimmedStore && trimmedGst)) {
     throw new HttpError(400, 'Both store_name and gst_no are required to register as a seller');
   }
 
-  const isSeller = Boolean(store_name && gst_no);
+  const isSeller = Boolean(trimmedStore && trimmedGst);
   if (isSeller) {
-    if (typeof store_name !== 'string' || !store_name.trim()) {
-      throw new HttpError(400, 'store_name must be a non-empty string');
-    }
-    const cleanGst = String(gst_no).trim().toUpperCase();
-    if (!/^[0-9A-Z]{15}$/.test(cleanGst)) {
+    if (!/^[0-9A-Z]{15}$/.test(trimmedGst)) {
       throw new HttpError(400, 'GST number must be exactly 15 alphanumeric characters');
     }
   }
@@ -40,13 +46,13 @@ r.post('/register', wrap(async (req, res) => {
     const { rows } = await c.query(
       `INSERT INTO app_user(full_name, email, phone, password_hash, role)
        VALUES ($1, $2, $3, $4, $5) RETURNING user_id, full_name, email, phone, role`,
-      [full_name.trim(), email.trim().toLowerCase(), phone?.trim() || null, hash, isSeller ? 'seller' : 'customer']
+      [full_name.trim(), cleanEmail, cleanPhone, hash, isSeller ? 'seller' : 'customer']
     );
     const u = rows[0];
     if (isSeller) {
       await c.query(
         'INSERT INTO seller(seller_id, store_name, gst_no) VALUES ($1, $2, $3)',
-        [u.user_id, store_name.trim(), String(gst_no).trim().toUpperCase()]
+        [u.user_id, trimmedStore, trimmedGst]
       );
     }
     return u;

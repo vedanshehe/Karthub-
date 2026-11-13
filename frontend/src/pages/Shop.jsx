@@ -238,7 +238,7 @@ export function Product({ user }) {
                 <th>Seller Rating</th>
                 <th>Stock Availability</th>
                 <th>Price</th>
-                {user?.role === 'customer' && <th style={{ width: 220 }}>Action</th>}
+                {(!user || user.role === 'customer') && <th style={{ width: 220 }}>Action</th>}
               </tr>
             </thead>
             <tbody>
@@ -265,31 +265,37 @@ export function Product({ user }) {
                       <Money amount={o.price} />
                     </span>
                   </td>
-                  {user?.role === 'customer' && (
+                  {(!user || user.role === 'customer') && (
                     <td>
-                      {o.stock_qty > 0 ? (
-                        <div className="row" style={{ gap: 6 }}>
-                          <input
-                            type="number"
-                            min="1"
-                            max={o.stock_qty}
-                            value={quantities[o.listing_id] || 1}
-                            onChange={e => handleQtyChange(o.listing_id, e.target.value)}
-                            style={{ width: 64, padding: '6px 8px' }}
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
-                            disabled={busy}
-                            onClick={() => addToCart(o)}
-                          >
-                            Add to Cart
-                          </button>
-                        </div>
+                      {user ? (
+                        o.stock_qty > 0 ? (
+                          <div className="row" style={{ gap: 6 }}>
+                            <input
+                              type="number"
+                              min="1"
+                              max={o.stock_qty}
+                              value={quantities[o.listing_id] || 1}
+                              onChange={e => handleQtyChange(o.listing_id, e.target.value)}
+                              style={{ width: 64, padding: '6px 8px' }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              disabled={busy}
+                              onClick={() => addToCart(o)}
+                            >
+                              Add to Cart
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                            Unavailable
+                          </span>
+                        )
                       ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                          Unavailable
-                        </span>
+                        <Link to="/login" className="btn btn-secondary btn-sm">
+                          Sign in to Buy
+                        </Link>
                       )}
                     </td>
                   )}

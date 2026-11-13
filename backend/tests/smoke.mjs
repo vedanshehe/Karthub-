@@ -33,7 +33,22 @@ const reg = async (tag, extra = {}) => {
 
 const stock = async tok => (await call('GET', '/seller/listings', tok)).body.find(l => l.product_id === PID).stock_qty;
 
-// --- 1. Registration checks
+// --- 1. Registration & Auth validations
+const badPhone = await call('POST', '/auth/register', null, {
+  full_name: 'Bad Phone User',
+  email: `bad_phone_${sfx}@t.dev`,
+  phone: '123', // invalid phone format
+  password: 'secret1'
+});
+check('invalid phone format rejected (400)', badPhone.status === 400);
+
+const badPwd = await call('POST', '/auth/register', null, {
+  full_name: 'Short Pwd User',
+  email: `bad_pwd_${sfx}@t.dev`,
+  password: '123' // < 6 chars
+});
+check('short password rejected (400)', badPwd.status === 400);
+
 const badSeller = await call('POST', '/auth/register', null, {
   full_name: 'Incomplete Seller',
   email: `bad_seller_${sfx}@t.dev`,
@@ -47,7 +62,26 @@ const s2 = await reg('seller2', { store_name: `Store2-${sfx}`, gst_no: ('30' + s
 const c1 = await reg('cust1');
 const c2 = await reg('cust2');
 
+const dupEmail = await call('POST', '/auth/register', null, {
+  full_name: 'Duplicate Email User',
+  email: `cust1${sfx}@t.dev`, // already registered
+  password: 'secret1'
+});
+check('duplicate email rejected (409)', dupEmail.status === 409);
+
+const badLogin = await call('POST', '/auth/login', null, {
+  email: `cust1${sfx}@t.dev`,
+  password: 'wrongpassword'
+});
+check('wrong password rejected (401)', badLogin.status === 401);
+
 // --- 2. Seller + authorization
+const badPriceListing = await call('POST', '/seller/listings', s1, { product_id: PID, price: -50, stock_qty: 10 });
+check('negative price listing rejected (400)', badPriceListing.status === 400);
+
+const badStockListing = await call('POST', '/seller/listings', s1, { product_id: PID, price: 100, stock_qty: -5 });
+check('negative stock listing rejected (400)', badStockListing.status === 400);
+
 const lst = await call('POST', '/seller/listings', s1, { product_id: PID, price: 1000, stock_qty: 1 });
 check('seller creates listing', lst.status === 201, JSON.stringify(lst.body));
 check('customer blocked from seller API (403)', (await call('GET', '/seller/listings', c1)).status === 403);
@@ -58,7 +92,16 @@ const L = lst.body.listing_id;
 const badCart = await call('PUT', '/cart', c1, { listing_id: L, quantity: 0 });
 check('cart quantity <= 0 rejected (400)', badCart.status === 400);
 
+await call('PUT', '/cart', c1, { listing_id: L, quantity: 2 });
+const delCart = await call('DELETE', `/cart/${L}`, c1);
+check('delete item from cart (204)', delCart.status === 204);
+
 // --- 4. Address management
+const badPinAddr = await call('POST', '/addresses', c1, {
+  line1: '1 Main St', city: 'Hyderabad', state: 'TS', pincode: '500'
+});
+check('invalid pincode rejected (400)', badPinAddr.status === 400);
+
 const addr = async (t, extra = {}) => (await call('POST', '/addresses', t, {
   line1: '1 Main St', city: 'Hyderabad', state: 'TS', pincode: '500078', ...extra
 })).body.address_id;
@@ -102,6 +145,9 @@ const ck = await call('POST', '/orders/checkout', W, { address_id: WA, payment_m
 check('COD checkout works', ck.status === 201 && ck.body.payment_status === 'PENDING', JSON.stringify(ck.body));
 const o2 = ck.body.order_id;
 
+const badRating = await call('POST', '/reviews', W, { order_id: o2, item_no: 1, rating: 6 });
+check('rating > 5 rejected (400)', badRating.status === 400);
+
 const rv = b => call('POST', '/reviews', W, { order_id: o2, item_no: 1, rating: 5, ...b });
 check('review before delivery rejected by trigger (422)', (await rv()).status === 422);
 check('other seller cannot ship my item (404)', (await call('PUT', `/seller/order-items/${o2}/1`, s2, { status: 'SHIPPED' })).status === 404);
@@ -111,6 +157,10 @@ check('seller delivers', (await call('PUT', `/seller/order-items/${o2}/1`, s1, {
 
 const od = (await call('GET', `/orders/${o2}`, W)).body;
 check('order rolled up to DELIVERED, COD payment SUCCESS', od.status === 'DELIVERED' && od.payment_status === 'SUCCESS', JSON.stringify(od));
+
+const cancelDelivered = await call('POST', `/orders/${o2}/items/1/cancel`, W);
+check('cancel delivered item rejected (409)', cancelDelivered.status === 409);
+
 check('review after delivery (201)', (await rv()).status === 201);
 check('duplicate review rejected (409)', (await rv()).status === 409);
 check("other customer cannot review it (404)", (await call('POST', '/reviews', other, { order_id: o2, item_no: 1, rating: 4 })).status === 404);

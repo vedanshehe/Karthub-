@@ -159,8 +159,8 @@ Registering through the UI always creates a customer, or a seller if you tick "R
 | Database integrity (41 tests) | `psql -U postgres -d karthub -P pager=off -f db/tests.sql` (repo root) | `passed 41, failed 0`. Rolls back, so data is untouched |
 | The six SQL queries | `psql -U postgres -d karthub -P pager=off -f db/queries.sql` (repo root) | Result tables for Q1-Q6 |
 | EXPLAIN ANALYZE evidence | `psql -U postgres -d karthub -o docs/explain_results.txt -f db/explain.sql` (repo root) | Plans with and without each index; data unchanged |
-| API end-to-end (25 checks) | `npm test` (in `backend/`, API must be running) | `All checks passed` |
-| API including admin checks | PowerShell: `$env:ADMIN_EMAIL="admin@karthub.dev"; $env:ADMIN_PASSWORD="secret1"; npm test` | Three extra PASS lines |
+| API end-to-end (36 checks) | `npm test` (in `backend/`, API must be running) | `All checks passed` |
+| API including admin checks (42 checks) | PowerShell: `$env:ADMIN_EMAIL="admin@karthub.dev"; $env:ADMIN_PASSWORD="secret1"; npm test` | Six extra PASS lines (all 42 checks pass) |
 
 `npm test` creates its own users and listing each run, using product id 1 (set `PRODUCT_ID` to change it). Re-run `db/setup.sql` any time you want a clean slate.
 
