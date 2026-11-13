@@ -17,8 +17,8 @@ function Nav({ user, onLogout }) {
     <header>
       <nav>
         <Link to="/" className="brand-logo">
-          <div className="brand-icon-wrap">⚡</div>
           <span>KartHub</span>
+          <span className="brand-dot" />
           <span className="brand-badge">Marketplace</span>
         </Link>
 
@@ -71,7 +71,7 @@ function Nav({ user, onLogout }) {
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 8 }}>
-            <Link to="/login" className="btn btn-secondary btn-sm" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.2)', background: 'transparent' }}>
+            <Link to="/login" className="btn btn-secondary btn-sm">
               Sign In
             </Link>
             <Link to="/register" className="btn btn-primary btn-sm">
@@ -81,6 +81,64 @@ function Nav({ user, onLogout }) {
         )}
       </nav>
     </header>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="site-footer">
+      <div className="footer-inner">
+        <div className="footer-top-grid">
+          <div>
+            <div className="footer-brand-title">
+              <span>KartHub</span>
+              <span className="brand-dot" />
+            </div>
+            <p className="footer-brand-desc">
+              A thoughtfully curated multi-vendor marketplace connecting discerning buyers with verified independent merchants and artisans.
+            </p>
+          </div>
+
+          <div>
+            <div className="footer-col-title">Collections</div>
+            <ul className="footer-links-list">
+              <li><Link to="/" className="footer-link-item">Electronics & Tech</Link></li>
+              <li><Link to="/" className="footer-link-item">Fashion & Apparel</Link></li>
+              <li><Link to="/" className="footer-link-item">Home & Cookware</Link></li>
+              <li><Link to="/" className="footer-link-item">Books & Literature</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <div className="footer-col-title">Marketplace</div>
+            <ul className="footer-links-list">
+              <li><Link to="/seller" className="footer-link-item">Seller Hub</Link></li>
+              <li><Link to="/orders" className="footer-link-item">Track Orders</Link></li>
+              <li><Link to="/addresses" className="footer-link-item">Saved Addresses</Link></li>
+              <li><Link to="/admin" className="footer-link-item">Admin Governance</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <div className="footer-col-title">Standards</div>
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
+              Every product listing is backed by verified independent sellers, authentic reviews, and a 100% genuine catalogue guarantee.
+            </p>
+          </div>
+        </div>
+
+        <div className="footer-bottom-row">
+          <div>© {new Date().getFullYear()} KartHub Marketplace. All rights reserved.</div>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <span>Verified Independent Sellers</span>
+            <span>•</span>
+            <span>Multi-Vendor Shared Catalogue</span>
+            <span>•</span>
+            <span>Hodo Stays Aesthetic</span>
+          </div>
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -135,6 +193,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      <Footer />
     </BrowserRouter>
   );
 }

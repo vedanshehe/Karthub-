@@ -3,216 +3,426 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useLoad, useAct, Msg, Money, RatingStars, Badge, QuantityStepper } from '../ui.jsx';
 
-function getCategoryIcon(name) {
+export function getCategoryIcon(name) {
   const n = String(name || '').toLowerCase();
   if (n.includes('phone') || n.includes('mobile')) return '📱';
   if (n.includes('laptop') || n.includes('computer')) return '💻';
-  if (n.includes('electronic') || n.includes('audio') || n.includes('headphone')) return '🎧';
-  if (n.includes('book')) return '📚';
-  if (n.includes('fashion') || n.includes('clothing') || n.includes('wear')) return '👕';
-  if (n.includes('home') || n.includes('furniture')) return '🏠';
-  if (n.includes('grocery') || n.includes('food')) return '🍎';
+  if (n.includes('headphone') || n.includes('audio')) return '🎧';
+  if (n.includes('camera')) return '📷';
+  if (n.includes('men') || n.includes('shirt')) return '👔';
+  if (n.includes('women') || n.includes('dress')) return '👗';
+  if (n.includes('shoe') || n.includes('footwear') || n.includes('sneaker')) return '👟';
+  if (n.includes('watch')) return '⌚';
+  if (n.includes('furniture') || n.includes('chair') || n.includes('sofa')) return '🛋️';
+  if (n.includes('cook') || n.includes('pan') || n.includes('pot') || n.includes('kitchen')) return '🍳';
+  if (n.includes('light') || n.includes('lamp')) return '💡';
+  if (n.includes('decor')) return '🏺';
+  if (n.includes('comic')) return '🎨';
+  if (n.includes('textbook')) return '📑';
+  if (n.includes('kid')) return '🧸';
+  if (n.includes('book') || n.includes('fiction')) return '📖';
+  if (n.includes('electronic')) return '⚡';
+  if (n.includes('fashion')) return '✨';
+  if (n.includes('home')) return '🏡';
   return '📦';
+}
+
+function getCategoryDescription(name) {
+  const n = String(name || '').toLowerCase();
+  if (n.includes('electronic')) return 'High-performance audio, portable computing, smartphones, and optical gear.';
+  if (n.includes('fashion')) return 'Understated everyday apparel, versatile footwear, and minimalist timepieces.';
+  if (n.includes('home')) return 'Minimalist furniture, artisan cookware, and warm ambient living essentials.';
+  if (n.includes('book')) return 'Literary fiction, academic reference, graphic novels, and illustrated works.';
+  return 'Curated selection from verified independent sellers.';
+}
+
+function ProductCard({ p }) {
+  return (
+    <Link to={`/product/${p.product_id}`} className="product-card">
+      <div className="product-card-thumb">
+        <span className="product-card-category-tag">{p.category}</span>
+        <span style={{ fontSize: '3rem', transition: 'transform 0.2s ease' }}>
+          {getCategoryIcon(p.category)}
+        </span>
+      </div>
+      <div className="product-card-body">
+        <h3 className="product-title">{p.name}</h3>
+        <div className="product-brand">{p.brand ? `By ${p.brand}` : 'Curated Brand'}</div>
+
+        <div className="product-rating-row">
+          <RatingStars rating={p.avg_rating} count={p.reviews} />
+        </div>
+
+        <div className="product-price-section">
+          <div>
+            <div className="product-price-label">From</div>
+            <div className="product-price-val">
+              {p.best_price ? <Money amount={p.best_price} /> : <span style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>Unavailable</span>}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'right' }}>
+            <span className="product-offers-count">
+              {p.offers} {p.offers === 1 ? 'seller' : 'sellers'}
+            </span>
+            <div className="product-view-link">
+              View offers →
+            </div>
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
 }
 
 export function Shop() {
   const cats = useLoad('/categories');
-  const [f, setF] = useState({ q: '', category: '', min: '', max: '', sort: '' });
-  const [res, setRes] = useState(null);
+  const [selectedCat, setSelectedCat] = useState('');
+  const [selectedSubcat, setSelectedSubcat] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
+  const [sortBy, setSortBy] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+
+  // Curated category sections cache: { [catId]: Product[] }
+  const [curatedSections, setCuratedSections] = useState({});
+  const [curatedLoading, setCuratedLoading] = useState(false);
+
+  // Filtered / search / category results
+  const [categoryProducts, setCategoryProducts] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
-  const searchWithParams = (filterObj) => {
+  // Root categories (filtering out any temporary smoke test categories)
+  const rootCats = (cats.data || []).filter(c => !c.parent_id && !c.name.startsWith('TestCat'));
+
+  // Determine if we are in the default "Curated Collections" overview
+  const isCuratedOverview = !selectedCat && !selectedSubcat && !activeSearch && !minPrice && !maxPrice;
+
+  // Pre-load curated items for each root category
+  useEffect(() => {
+    if (rootCats.length > 0 && Object.keys(curatedSections).length === 0) {
+      setCuratedLoading(true);
+      Promise.all(
+        rootCats.map(c =>
+          api(`/products?category=${c.category_id}&page=1`)
+            .then(res => ({ id: c.category_id, items: res.results || [] }))
+            .catch(() => ({ id: c.category_id, items: [] }))
+        )
+      )
+        .then(results => {
+          const map = {};
+          results.forEach(r => { map[r.id] = r.items; });
+          setCuratedSections(map);
+        })
+        .finally(() => setCuratedLoading(false));
+    }
+  }, [cats.data]);
+
+  // Load products when category, subcategory, or sort changes
+  const executeQuery = (catId, subId, q, sort, min, max) => {
+    const targetCat = subId || catId || '';
+    if (!targetCat && !q && !min && !max) {
+      setCategoryProducts(null);
+      return;
+    }
+
     setLoading(true);
-    const params = new URLSearchParams(Object.entries(filterObj).filter(([, v]) => v));
-    api('/products?' + params)
+    setErr('');
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (targetCat) params.set('category', targetCat);
+    if (min) params.set('min', min);
+    if (max) params.set('max', max);
+    if (sort) params.set('sort', sort);
+
+    api('/products?' + params.toString())
       .then(d => {
-        setRes(d.results);
-        setErr('');
+        setCategoryProducts(d.results || []);
       })
       .catch(e => setErr(e.message))
       .finally(() => setLoading(false));
   };
 
-  const search = () => searchWithParams(f);
-
-  useEffect(() => {
-    search();
-  }, []);
-
-  const setField = k => e => setF({ ...f, [k]: e.target.value });
-
-  const handleSelectCategory = (catId) => {
-    const updated = { ...f, category: catId };
-    setF(updated);
-    searchWithParams(updated);
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    setActiveSearch(searchTerm.trim());
+    executeQuery(selectedCat, selectedSubcat, searchTerm.trim(), sortBy, minPrice, maxPrice);
   };
 
-  const clearFilters = () => {
-    const reset = { q: '', category: '', min: '', max: '', sort: '' };
-    setF(reset);
-    searchWithParams(reset);
+  const handleSelectRoot = (catId) => {
+    setSelectedCat(catId);
+    setSelectedSubcat('');
+    executeQuery(catId, '', activeSearch, sortBy, minPrice, maxPrice);
   };
+
+  const handleSelectSub = (subId) => {
+    setSelectedSubcat(subId);
+    executeQuery(selectedCat, subId, activeSearch, sortBy, minPrice, maxPrice);
+  };
+
+  const handleSortChange = (newSort) => {
+    setSortBy(newSort);
+    if (!isCuratedOverview || selectedCat || activeSearch) {
+      executeQuery(selectedCat, selectedSubcat, activeSearch, newSort, minPrice, maxPrice);
+    }
+  };
+
+  const clearAllFilters = () => {
+    setSelectedCat('');
+    setSelectedSubcat('');
+    setSearchTerm('');
+    setActiveSearch('');
+    setSortBy('');
+    setMinPrice('');
+    setMaxPrice('');
+    setCategoryProducts(null);
+  };
+
+  // Subcategories for the selected root category
+  const currentRoot = rootCats.find(c => String(c.category_id) === String(selectedCat));
+  const currentSubcats = (cats.data || []).filter(c => String(c.parent_id) === String(selectedCat));
 
   return (
     <div>
-      {/* Hero Banner */}
-      <div className="hero-banner">
-        <div className="hero-badge">⚡ Multi-Vendor Shared Catalogue</div>
-        <h1>Discover Genuine Products & Best Prices</h1>
-        <p>
-          Compare verified independent sellers, evaluate live inventory counts, read authenticated buyer reviews, and checkout seamlessly.
+      {/* Hero Section */}
+      <div className="hero-section">
+        <span className="hero-tag">Curated Living & Marketplace</span>
+        <h1 className="hero-title">Thoughtfully Curated.</h1>
+        <p className="hero-subtitle">
+          Quality lifestyle, modern electronics, home craft, and literature—sourced from verified independent merchants.
         </p>
       </div>
 
-      {/* Quick Category Filter Pills */}
-      {cats.data && cats.data.length > 0 && (
-        <div className="category-filter-strip">
+      {/* Floating Pill Search Bar (Hodo Stays Style) */}
+      <form onSubmit={handleSearchSubmit} className="search-widget-bar">
+        <span style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginLeft: 4 }}>🔍</span>
+        <input
+          type="text"
+          className="search-widget-input"
+          placeholder="Search items, brands, or keywords..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+        />
+
+        <div className="search-widget-divider" />
+
+        <select
+          className="search-widget-select"
+          value={selectedCat}
+          onChange={e => handleSelectRoot(e.target.value)}
+        >
+          <option value="">All Categories</option>
+          {rootCats.map(c => (
+            <option key={c.category_id} value={c.category_id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+
+        <div className="search-widget-divider" />
+
+        <select
+          className="search-widget-select"
+          value={sortBy}
+          onChange={e => handleSortChange(e.target.value)}
+        >
+          <option value="">Featured</option>
+          <option value="price">Price: Low to High</option>
+          <option value="rating">Top Rated</option>
+        </select>
+
+        <button type="submit" className="btn btn-primary" style={{ padding: '8px 20px' }}>
+          Explore
+        </button>
+      </form>
+
+      {/* Category Navigation Pills */}
+      {rootCats.length > 0 && (
+        <div className="category-nav-strip">
           <button
             type="button"
-            className={`cat-pill-btn ${!f.category ? 'active' : ''}`}
-            onClick={() => handleSelectCategory('')}
+            className={`category-nav-btn ${!selectedCat && !activeSearch ? 'active' : ''}`}
+            onClick={clearAllFilters}
           >
-            All Categories
+            ✦ All Collections
           </button>
-          {cats.data.map(c => (
+          {rootCats.map(c => (
             <button
               key={c.category_id}
               type="button"
-              className={`cat-pill-btn ${String(f.category) === String(c.category_id) ? 'active' : ''}`}
-              onClick={() => handleSelectCategory(String(c.category_id))}
+              className={`category-nav-btn ${String(selectedCat) === String(c.category_id) ? 'active' : ''}`}
+              onClick={() => handleSelectRoot(String(c.category_id))}
             >
-              {getCategoryIcon(c.name)} {c.name} ({c.products_in_subtree})
+              {getCategoryIcon(c.name)} {c.name}
             </button>
           ))}
         </div>
       )}
 
-      {/* Search & Filter Bar */}
-      <div className="card" style={{ padding: '20px 24px', background: '#fff' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
-          <div>
-            <label>Search Keyword</label>
-            <input
-              placeholder="Search smartphone, laptop..."
-              value={f.q}
-              onChange={setField('q')}
-              onKeyDown={e => e.key === 'Enter' && search()}
-            />
-          </div>
-
-          <div>
-            <label>Category Filter</label>
-            <select value={f.category} onChange={setField('category')}>
-              <option value="">All categories</option>
-              {cats.data?.map(c => (
-                <option key={c.category_id} value={c.category_id}>
-                  {c.parent_id ? '• ' : ''}{c.name} ({c.products_in_subtree})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <label>Min ₹</label>
-              <input
-                type="number"
-                placeholder="0"
-                value={f.min}
-                onChange={setField('min')}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label>Max ₹</label>
-              <input
-                type="number"
-                placeholder="Any"
-                value={f.max}
-                onChange={setField('max')}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label>Sort By</label>
-            <select value={f.sort} onChange={setField('sort')}>
-              <option value="">Catalogue Default</option>
-              <option value="price">Price: Low to High</option>
-              <option value="rating">Top Customer Rated</option>
-            </select>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
-          <button type="button" className="btn-secondary" onClick={clearFilters}>
-            Reset Filters
-          </button>
-          <button type="button" className="btn-primary" onClick={search}>
-            Apply Filters
-          </button>
-        </div>
-      </div>
-
       {err && <div className="alert alert-error">{err}</div>}
 
-      {loading ? (
-        <div className="card empty-state">
-          <div className="empty-state-icon">⏳</div>
-          <h4>Loading products...</h4>
-          <p>Fetching multi-vendor catalogue offers.</p>
-        </div>
-      ) : res?.length ? (
-        <div className="products-grid">
-          {res.map(p => (
-            <div key={p.product_id} className="product-card">
-              <div className="product-card-thumb">
-                {getCategoryIcon(p.category)}
-              </div>
-              <span className="product-category-chip">{p.category}</span>
-              <h3 className="product-title">{p.name}</h3>
-              <div className="product-brand">{p.brand ? `By ${p.brand}` : 'Generic Brand'}</div>
+      {/* VIEW 1: CURATED CATEGORY OVERVIEW (Default Landing State) */}
+      {isCuratedOverview && !loading && (
+        <div>
+          {curatedLoading && Object.keys(curatedSections).length === 0 ? (
+            <div className="card empty-state">
+              <div className="empty-state-icon">⏳</div>
+              <h4>Curating collections...</h4>
+              <p>Gathering items across verified sellers.</p>
+            </div>
+          ) : (
+            rootCats.map(cat => {
+              const items = (curatedSections[cat.category_id] || []).slice(0, 4);
+              const subcatNames = (cats.data || [])
+                .filter(c => c.parent_id === cat.category_id)
+                .map(c => c.name)
+                .join(' • ');
 
-              <div style={{ marginBottom: 12 }}>
-                <RatingStars rating={p.avg_rating} count={p.reviews} />
-              </div>
-
-              <div className="product-price-section">
-                <div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
-                    Best offer from
-                  </div>
-                  <div className="product-price-val">
-                    {p.best_price ? <Money amount={p.best_price} /> : <span style={{ color: 'var(--danger)', fontSize: '1rem' }}>Out of stock</span>}
-                  </div>
-                </div>
-
-                <div style={{ textAlign: 'right' }}>
-                  <span className="badge badge-info" style={{ marginBottom: 6 }}>
-                    {p.offers} {p.offers === 1 ? 'seller' : 'sellers'}
-                  </span>
-                  <div>
-                    <Link
-                      to={`/product/${p.product_id}`}
-                      className="btn btn-secondary btn-sm"
-                      style={{ marginTop: 4 }}
+              return (
+                <section key={cat.category_id} className="category-section-block">
+                  <div className="category-section-header">
+                    <div>
+                      <h2 className="category-section-title">
+                        {cat.name}
+                      </h2>
+                      <div className="category-section-desc">
+                        {subcatNames || getCategoryDescription(cat.name)}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="category-view-all-btn"
+                      onClick={() => handleSelectRoot(String(cat.category_id))}
                     >
-                      Compare offers →
-                    </Link>
+                      Explore {cat.name} ({cat.products_in_subtree}) →
+                    </button>
                   </div>
-                </div>
+
+                  <div className="products-grid">
+                    {items.map(p => (
+                      <ProductCard key={p.product_id} p={p} />
+                    ))}
+                  </div>
+                </section>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* VIEW 2: CATEGORY SPECIFIC OR SEARCH RESULTS VIEW */}
+      {!isCuratedOverview && (
+        <div>
+          {/* Header Bar for Active Category or Search */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={clearAllFilters}
+                >
+                  ← All Collections
+                </button>
+                {selectedCat && currentRoot && (
+                  <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                    / {currentRoot.name}
+                  </span>
+                )}
+                {selectedSubcat && (
+                  <span style={{ fontSize: '0.88rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                    / {cats.data?.find(c => String(c.category_id) === String(selectedSubcat))?.name}
+                  </span>
+                )}
+              </div>
+
+              <h2 style={{ margin: '8px 0 4px' }}>
+                {activeSearch
+                  ? `Search Results for "${activeSearch}"`
+                  : currentRoot
+                  ? `${currentRoot.name} Collection`
+                  : 'All Products'}
+              </h2>
+              <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem' }}>
+                {activeSearch
+                  ? `Showing results matching your query.`
+                  : currentRoot
+                  ? getCategoryDescription(currentRoot.name)
+                  : 'Filtered collection of multi-vendor marketplace products.'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {(activeSearch || selectedCat || selectedSubcat || minPrice || maxPrice) && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={clearAllFilters}
+                >
+                  Reset All Filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Subcategory Pills Strip (when a Root Category is selected) */}
+          {selectedCat && currentSubcats.length > 0 && (
+            <div className="subcategory-strip">
+              <button
+                type="button"
+                className={`subcat-pill ${!selectedSubcat ? 'active' : ''}`}
+                onClick={() => handleSelectSub('')}
+              >
+                All {currentRoot?.name}
+              </button>
+              {currentSubcats.map(sub => (
+                <button
+                  key={sub.category_id}
+                  type="button"
+                  className={`subcat-pill ${String(selectedSubcat) === String(sub.category_id) ? 'active' : ''}`}
+                  onClick={() => handleSelectSub(String(sub.category_id))}
+                >
+                  {getCategoryIcon(sub.name)} {sub.name} ({sub.products_in_subtree})
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Loading or Results */}
+          {loading ? (
+            <div className="card empty-state">
+              <div className="empty-state-icon">⏳</div>
+              <h4>Loading items...</h4>
+              <p>Fetching active offers from independent sellers.</p>
+            </div>
+          ) : categoryProducts?.length ? (
+            <div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+                Showing <strong>{categoryProducts.length}</strong> items in this collection
+              </div>
+              <div className="products-grid">
+                {categoryProducts.map(p => (
+                  <ProductCard key={p.product_id} p={p} />
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="empty-state card">
-          <div className="empty-state-icon">🔍</div>
-          <h4>No products found</h4>
-          <p>Try searching for a different keyword or adjusting your category/price filters.</p>
-          <button type="button" className="btn-secondary" onClick={clearFilters} style={{ marginTop: 12 }}>
-            Clear all filters
-          </button>
+          ) : (
+            <div className="card empty-state">
+              <div className="empty-state-icon">🔍</div>
+              <h4>No items found</h4>
+              <p>No products match your current category or search criteria.</p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={clearAllFilters}
+                style={{ marginTop: 12 }}
+              >
+                Return to All Collections
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -234,139 +444,179 @@ export function Product({ user }) {
     const qty = quantities[offer.listing_id] || 1;
     run(
       () => api('/cart', { method: 'PUT', body: { listing_id: offer.listing_id, quantity: qty } }),
-      `Added ${qty} unit(s) of "${prod.data?.name || 'Item'}" from ${offer.store_name} to cart!`
+      `Added ${qty} unit(s) from ${offer.store_name} to cart!`
     );
   };
 
   return (
     <div>
-      <div style={{ marginBottom: 18 }}>
+      <div style={{ marginBottom: 20 }}>
         <Link to="/" className="btn btn-secondary btn-sm">
-          ← Back to catalogue
+          ← Back to Catalogue
         </Link>
       </div>
 
       <Msg m={msg} />
 
+      {prod.loading && (
+        <div className="card empty-state">
+          <p>Loading product details...</p>
+        </div>
+      )}
+
       {prod.data && (
-        <div className="card" style={{ marginBottom: 28, position: 'relative' }}>
-          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-            <div className="product-card-thumb" style={{ width: 100, height: 100, fontSize: '2.5rem', flexShrink: 0 }}>
-              {getCategoryIcon(prod.data.category)}
+        <div className="product-detail-grid">
+          {/* Left Column: Product Showcase */}
+          <div className="product-detail-showcase">
+            <div className="product-detail-visual">
+              <span className="product-card-category-tag">{prod.data.category}</span>
+              <span>{getCategoryIcon(prod.data.category)}</span>
             </div>
-            <div style={{ flex: 1 }}>
-              <span className="product-category-chip">{prod.data.category}</span>
-              <h2 style={{ margin: '6px 0 8px' }}>{prod.data.name}</h2>
-              <div className="row" style={{ gap: 14, color: 'var(--text-muted)', marginBottom: 12 }}>
-                <span>Brand: <strong>{prod.data.brand || 'Unbranded'}</strong></span>
-                <span>•</span>
-                <RatingStars rating={prod.data.avg_rating} count={prod.data.reviews} />
+
+            <h1 style={{ fontSize: '2rem', marginBottom: 6 }}>{prod.data.name}</h1>
+            
+            <div className="row" style={{ gap: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+              <span>Brand: <strong style={{ color: 'var(--text-main)' }}>{prod.data.brand || 'Curated'}</strong></span>
+              <span>•</span>
+              <RatingStars rating={prod.data.avg_rating} count={prod.data.reviews} />
+            </div>
+
+            {prod.data.description && (
+              <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: '0.96rem', margin: '0 0 20px' }}>
+                {prod.data.description}
+              </p>
+            )}
+
+            <div className="product-perks-list">
+              <div className="product-perk-item">
+                <span>🛡️</span>
+                <span>Verified Independent Sellers</span>
               </div>
-              {prod.data.description && (
-                <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0, fontSize: '0.95rem' }}>
-                  {prod.data.description}
-                </p>
+              <div className="product-perk-item">
+                <span>📦</span>
+                <span>Direct Merchant Fulfilled</span>
+              </div>
+              <div className="product-perk-item">
+                <span>🔒</span>
+                <span>Secure Order Checkout</span>
+              </div>
+              <div className="product-perk-item">
+                <span>✨</span>
+                <span>Authentic Quality Standard</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Seller Offers & Pricing */}
+          <div>
+            <div className="card" style={{ padding: '24px 28px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.35rem' }}>Independent Seller Offers</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '3px 0 0' }}>
+                    Compare prices and live stock from verified merchants.
+                  </p>
+                </div>
+              </div>
+
+              {offers.loading ? (
+                <p style={{ color: 'var(--text-muted)' }}>Loading seller offers...</p>
+              ) : offers.data?.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {offers.data.map(o => (
+                    <div
+                      key={o.listing_id}
+                      style={{
+                        padding: '16px 18px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--bg-surface-soft)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-main)' }}>
+                            {o.store_name}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                            <Badge status={o.is_verified} type="verified" />
+                            <RatingStars rating={o.seller_rating} />
+                          </div>
+                        </div>
+
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                            <Money amount={o.price} />
+                          </div>
+                          <div>
+                            {o.stock_qty > 0 ? (
+                              <span className="badge badge-success" style={{ marginTop: 4 }}>
+                                In Stock ({o.stock_qty})
+                              </span>
+                            ) : (
+                              <span className="badge badge-danger" style={{ marginTop: 4 }}>
+                                Out of stock
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {(!user || user.role === 'customer') && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, paddingTop: 10, borderTop: '1px solid var(--border-light)' }}>
+                          {user ? (
+                            o.stock_qty > 0 ? (
+                              <>
+                                <QuantityStepper
+                                  value={quantities[o.listing_id] || 1}
+                                  min={1}
+                                  max={o.stock_qty}
+                                  onChange={v => handleQtyChange(o.listing_id, v)}
+                                  disabled={busy}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-sm"
+                                  disabled={busy}
+                                  onClick={() => addToCart(o)}
+                                >
+                                  Add to Cart 🛒
+                                </button>
+                              </>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                Currently Unavailable
+                              </span>
+                            )
+                          ) : (
+                            <Link to="/login" className="btn btn-secondary btn-sm">
+                              Sign in to Buy
+                            </Link>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state" style={{ padding: '24px 0' }}>
+                  <h4>No active offers</h4>
+                  <p>No verified sellers currently have inventory for this item.</p>
+                </div>
+              )}
+
+              {!user && (
+                <div style={{ marginTop: 20, padding: 14, background: '#fff', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
+                  <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                    Want to buy? <Link to="/login" style={{ fontWeight: 600, color: 'var(--accent)' }}>Sign in as customer</Link> to add items to your cart and checkout.
+                  </p>
+                </div>
               )}
             </div>
           </div>
-        </div>
-      )}
-
-      <h3>Seller Offers & Price Comparison</h3>
-      <p style={{ color: 'var(--text-muted)', marginTop: -6, marginBottom: 16 }}>
-        Multiple verified sellers offer this item out of the shared catalogue. Compare price, live stock and ratings.
-      </p>
-
-      {offers.loading ? (
-        <div className="card empty-state">
-          <p>Loading seller offers...</p>
-        </div>
-      ) : offers.data?.length ? (
-        <div className="table-responsive">
-          <table>
-            <thead>
-              <tr>
-                <th>Seller / Store</th>
-                <th>Seller Rating</th>
-                <th>Stock Availability</th>
-                <th>Offer Price</th>
-                {(!user || user.role === 'customer') && <th style={{ width: 240 }}>Action</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {offers.data.map(o => (
-                <tr key={o.listing_id}>
-                  <td>
-                    <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{o.store_name}</div>
-                    <div style={{ marginTop: 3 }}>
-                      <Badge status={o.is_verified} type="verified" />
-                    </div>
-                  </td>
-                  <td>
-                    <RatingStars rating={o.seller_rating} />
-                  </td>
-                  <td>
-                    {o.stock_qty > 0 ? (
-                      <span className="badge badge-success">In Stock ({o.stock_qty})</span>
-                    ) : (
-                      <span className="badge badge-danger">Out of stock</span>
-                    )}
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                      <Money amount={o.price} />
-                    </span>
-                  </td>
-                  {(!user || user.role === 'customer') && (
-                    <td>
-                      {user ? (
-                        o.stock_qty > 0 ? (
-                          <div className="row" style={{ gap: 8 }}>
-                            <QuantityStepper
-                              value={quantities[o.listing_id] || 1}
-                              min={1}
-                              max={o.stock_qty}
-                              onChange={v => handleQtyChange(o.listing_id, v)}
-                              disabled={busy}
-                            />
-                            <button
-                              type="button"
-                              className="btn btn-primary btn-sm"
-                              disabled={busy}
-                              onClick={() => addToCart(o)}
-                            >
-                              Add to Cart 🛒
-                            </button>
-                          </div>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                            Currently Unavailable
-                          </span>
-                        )
-                      ) : (
-                        <Link to="/login" className="btn btn-secondary btn-sm">
-                          Sign in to Buy
-                        </Link>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="card empty-state">
-          <h4>No active offers right now</h4>
-          <p>No sellers currently have active listings for this product.</p>
-        </div>
-      )}
-
-      {!user && (
-        <div className="card" style={{ background: 'var(--primary-light)', borderColor: '#bfdbfe', marginTop: 24 }}>
-          <p style={{ margin: 0, fontWeight: 500 }}>
-            Want to purchase? <Link to="/login" style={{ fontWeight: 700, color: 'var(--accent)' }}>Sign in as customer</Link> to add items to your cart and checkout.
-          </p>
         </div>
       )}
     </div>
