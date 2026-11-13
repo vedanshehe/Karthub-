@@ -165,11 +165,41 @@ check('review after delivery (201)', (await rv()).status === 201);
 check('duplicate review rejected (409)', (await rv()).status === 409);
 check("other customer cannot review it (404)", (await call('POST', '/reviews', other, { order_id: o2, item_no: 1, rating: 4 })).status === 404);
 
+// --- Review Deletion & Re-reviewing
+const orderDetailWithRev = (await call('GET', `/orders/${o2}`, W)).body;
+const revItem = orderDetailWithRev.items.find(it => it.item_no === 1);
+check('order detail includes review_id', Boolean(revItem?.review_id));
+
+const otherDelRev = await call('DELETE', `/reviews/${revItem.review_id}`, other);
+check("other user cannot delete my review (404)", otherDelRev.status === 404);
+
+const delRev = await call('DELETE', `/reviews/${revItem.review_id}`, W);
+check('author deletes review (204)', delRev.status === 204);
+
+const reRev = await call('POST', '/reviews', W, { order_id: o2, item_no: 1, rating: 4, comment: 'Re-reviewed' });
+check('re-review after deletion succeeds (201)', reRev.status === 201);
+
+// --- Address Deletion
+const extraAddr = await addr(c1);
+const delExtraAddr = await call('DELETE', `/addresses/${extraAddr}`, c1);
+check('delete unreferenced address (204)', delExtraAddr.status === 204);
+
+const delOrderedAddr = await call('DELETE', `/addresses/${WA}`, W);
+check('delete ordered address refused by FK (409)', delOrderedAddr.status === 409);
+
+// --- Seller Listing Deletion & Deactivation
+const tempLst = await call('POST', '/seller/listings', s2, { product_id: PID, price: 1500, stock_qty: 3 });
+const delTempLst = await call('DELETE', `/seller/listings/${tempLst.body.listing_id}`, s2);
+check('delete un-ordered listing (204)', delTempLst.status === 204);
+
+const delOrderedLst = await call('DELETE', `/seller/listings/${L}`, s1);
+check('delete ordered listing deactivates it (200, is_active=false)', delOrderedLst.status === 200 && delOrderedLst.body.is_active === false);
+
 // --- 8. Seller analytics
 const d = await call('GET', '/seller/dashboard', s1);
 check('dashboard returns data and kpis', d.status === 200 && d.body.monthly_revenue.length > 0 && d.body.kpis, JSON.stringify(d.body));
 
-// --- 9. Admin operations
+// --- 9. Admin operations & Object Deletions
 if (process.env.ADMIN_EMAIL) {
   const ad = (await call('POST', '/auth/login', null, { email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD })).body.token;
   check('customer blocked from admin API', (await call('GET', '/admin/sellers', c1)).status === 403);
@@ -185,8 +215,18 @@ if (process.env.ADMIN_EMAIL) {
   });
   check('admin creates coupon', cp.status === 201, JSON.stringify(cp.body));
 
+  const delCp = await call('DELETE', `/admin/coupons/${cp.body.code}`, ad);
+  check('admin deletes unused coupon (200)', delCp.status === 200);
+
+  const delUsedCp = await call('DELETE', `/admin/coupons/WELCOME10`, ad);
+  check('admin deleting used coupon refused by FK (409)', delUsedCp.status === 409);
+
   const cat = await call('POST', '/admin/categories', ad, { name: `TestCat-${sfx}` });
   check('admin creates category', cat.status === 201);
+
+  const emptyCat = await call('POST', '/admin/categories', ad, { name: `EmptyCat-${sfx}` });
+  const delEmptyCat = await call('DELETE', `/admin/categories/${emptyCat.body.category_id}`, ad);
+  check('admin deletes empty category (200)', delEmptyCat.status === 200);
 
   const prod = await call('POST', '/admin/products', ad, {
     category_id: cat.body.category_id,
@@ -195,6 +235,15 @@ if (process.env.ADMIN_EMAIL) {
     description: 'Created by smoke test'
   });
   check('admin creates product', prod.status === 201);
+
+  const delCatWithProd = await call('DELETE', `/admin/categories/${cat.body.category_id}`, ad);
+  check('admin deleting category with products refused by FK (409)', delCatWithProd.status === 409);
+
+  const delProd = await call('DELETE', `/admin/products/${prod.body.product_id}`, ad);
+  check('admin deletes unlisted product (200)', delProd.status === 200);
+
+  const delProdWithLst = await call('DELETE', `/admin/products/${PID}`, ad);
+  check('admin deleting product with listings refused by FK (409)', delProdWithLst.status === 409);
 }
 
 console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll checks passed');

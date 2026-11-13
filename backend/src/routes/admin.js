@@ -106,4 +106,41 @@ r.post('/products', wrap(async (req, res) => {
   res.status(201).json(rows[0]);
 }));
 
+// GET /api/admin/products -> list products with category name and total listings
+r.get('/products', wrap(async (_req, res) => {
+  const { rows } = await query(`
+    SELECT p.product_id, p.name, p.brand, p.description, c.name AS category_name, p.category_id,
+           (SELECT COUNT(*) FROM listing l WHERE l.product_id = p.product_id) AS total_listings
+    FROM product p
+    JOIN category c ON c.category_id = p.category_id
+    ORDER BY p.product_id DESC`);
+  res.json(rows);
+}));
+
+// DELETE /api/admin/coupons/:code
+r.delete('/coupons/:code', wrap(async (req, res) => {
+  const code = req.params.code.trim().toUpperCase();
+  const { rowCount } = await query('DELETE FROM coupon WHERE code = $1', [code]);
+  if (!rowCount) throw new HttpError(404, 'Coupon not found');
+  res.json({ ok: true, message: `Coupon ${code} deleted` });
+}));
+
+// DELETE /api/admin/categories/:id
+r.delete('/categories/:id', wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) throw new HttpError(400, 'Invalid category id');
+  const { rowCount } = await query('DELETE FROM category WHERE category_id = $1', [id]);
+  if (!rowCount) throw new HttpError(404, 'Category not found');
+  res.json({ ok: true, message: `Category #${id} deleted` });
+}));
+
+// DELETE /api/admin/products/:id
+r.delete('/products/:id', wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) throw new HttpError(400, 'Invalid product id');
+  const { rowCount } = await query('DELETE FROM product WHERE product_id = $1', [id]);
+  if (!rowCount) throw new HttpError(404, 'Product not found');
+  res.json({ ok: true, message: `Product #${id} deleted` });
+}));
+
 export default r;

@@ -106,7 +106,7 @@ r.get('/:id', wrap(async (req, res) => {
   const items = (await query(`
     SELECT oi.item_no, p.product_id, p.name, p.brand, s.store_name, oi.quantity, oi.unit_price,
            (oi.quantity * oi.unit_price) AS line_total, oi.item_status,
-           (rv.review_id IS NOT NULL) AS reviewed, rv.rating AS review_rating
+           (rv.review_id IS NOT NULL) AS reviewed, rv.review_id, rv.rating AS review_rating, rv.comment AS review_comment
     FROM order_item oi
     JOIN listing l ON l.listing_id = oi.listing_id
     JOIN product p ON p.product_id = l.product_id

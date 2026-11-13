@@ -1,38 +1,43 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api.js';
-import { useLoad, useAct, Msg, Money, FormattedDate, Badge, Modal, RatingStars } from '../ui.jsx';
+import { useLoad, useAct, Msg, Money, FormattedDate, Badge, Modal, RatingStars, StarRatingSelector } from '../ui.jsx';
 
 export function Orders() {
   const { data, loading, err } = useLoad('/orders');
 
   return (
     <div>
-      <h2>My Order History</h2>
-      <p style={{ color: 'var(--text-muted)', marginTop: -8, marginBottom: 20 }}>
-        Track your placed orders, delivery progress, item cancellations, and reviews.
-      </p>
+      <div style={{ marginBottom: 24 }}>
+        <h2>My Order History</h2>
+        <p style={{ color: 'var(--text-muted)', marginTop: -6 }}>
+          Track real-time order states, item dispatch, cancellation status, and write product reviews.
+        </p>
+      </div>
 
       {err && <div className="alert alert-error">{err}</div>}
 
       {loading ? (
-        <p>Loading your orders...</p>
+        <div className="card empty-state">
+          <p>Loading your orders...</p>
+        </div>
       ) : !data?.length ? (
         <div className="card empty-state">
-          <h4>No orders yet</h4>
-          <p>You haven't placed any orders yet. Discover products in our catalogue.</p>
-          <Link to="/" className="btn btn-primary" style={{ marginTop: 10 }}>
-            Start Shopping
+          <div className="empty-state-icon">📦</div>
+          <h4>No orders placed yet</h4>
+          <p>You haven't placed any orders yet. Discover items in our multi-vendor catalogue.</p>
+          <Link to="/" className="btn btn-primary" style={{ marginTop: 14 }}>
+            Explore Catalogue
           </Link>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {data.map(o => (
-            <div key={o.order_id} className="card" style={{ padding: '18px 24px' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+            <div key={o.order_id} className="card" style={{ padding: '20px 24px', margin: 0 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>Order #{o.order_id}</span>
+                    <span style={{ fontSize: '1.15rem', fontWeight: 800 }}>Order #{o.order_id}</span>
                     <Badge status={o.status} />
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -40,27 +45,27 @@ export function Orders() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 28 }}>
                   <div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
                       Payable Total
                     </div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
                       <Money amount={o.payable} />
                     </div>
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
                       Payment ({o.method || 'MOCK'})
                     </div>
-                    <div>
+                    <div style={{ marginTop: 2 }}>
                       <Badge status={o.payment_status} />
                     </div>
                   </div>
 
-                  <Link to={`/orders/${o.order_id}`} className="btn btn-secondary btn-sm">
-                    View Details →
+                  <Link to={`/orders/${o.order_id}`} className="btn btn-secondary btn-sm" style={{ fontWeight: 700 }}>
+                    View Order Details →
                   </Link>
                 </div>
               </div>
@@ -89,7 +94,7 @@ export function OrderDetail() {
     if (!cancelModalItem) return;
     run(
       () => api(`/orders/${id}/items/${cancelModalItem.item_no}/cancel`, { method: 'POST' }),
-      `Item #${cancelModalItem.item_no} cancelled. Stock restored to listing.`
+      `Item #${cancelModalItem.item_no} cancelled. Inventory quantity restored to seller.`
     )
       .then(() => {
         setCancelModalItem(null);
@@ -121,22 +126,30 @@ export function OrderDetail() {
       .catch(() => {});
   };
 
-  if (loading) return <p>Loading order #{id}...</p>;
+  const handleDeleteReview = (item) => {
+    if (!confirm(`Are you sure you want to delete your review for "${item.name}"?`)) return;
+    run(
+      () => api(`/reviews/${item.review_id}`, { method: 'DELETE' }),
+      'Your review has been deleted.'
+    ).then(reload);
+  };
+
+  if (loading) return <div className="card empty-state"><p>Loading order #{id}...</p></div>;
   if (err) return <div className="alert alert-error">{err}</div>;
   if (!data) return null;
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 18 }}>
         <Link to="/orders" className="btn btn-secondary btn-sm">
-          ← Back to orders
+          ← Back to all orders
         </Link>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 14 }}>
         <div>
-          <h2>Order #{data.order_id}</h2>
-          <span style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+          <h2 style={{ margin: '0 0 4px' }}>Order #{data.order_id}</h2>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             Placed on <FormattedDate date={data.placed_at} />
           </span>
         </div>
@@ -151,49 +164,52 @@ export function OrderDetail() {
       {/* Financial Summary & Address Overview */}
       <div className="grid-2">
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Payment & Billing</h3>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ color: 'var(--text-muted)' }}>Original Gross:</span>
+          <h3 style={{ marginTop: 0 }}>Payment & Billing Breakdown</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.92rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Original Order Gross:</span>
             <span><Money amount={data.gross} /></span>
           </div>
 
           {data.coupon_code && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: 'var(--success)' }}>
-              <span>Coupon applied:</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, color: 'var(--success)', fontWeight: 600, fontSize: '0.92rem' }}>
+              <span>Promotional Coupon Applied:</span>
               <span><strong>{data.coupon_code}</strong></span>
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontWeight: 700, fontSize: '1.05rem', borderTop: '1px solid var(--border-color)', paddingTop: 8 }}>
-            <span>Original Payable:</span>
-            <span><Money amount={data.payable} /></span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontWeight: 800, fontSize: '1.1rem', borderTop: '1px solid var(--border-color)', paddingTop: 10 }}>
+            <span>Original Payable Total:</span>
+            <span style={{ color: 'var(--primary)' }}><Money amount={data.payable} /></span>
           </div>
 
           {Number(data.cancelled_gross) > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--danger)', fontSize: '0.85rem' }}>
-              <span>Cancelled items value:</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--danger)', fontSize: '0.88rem', fontWeight: 600, marginTop: 4 }}>
+              <span>Cancelled items refunded/deducted:</span>
               <span>-<Money amount={data.cancelled_gross} /></span>
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTop: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Payment Method:</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTop: '1px solid #f1f5f9', fontSize: '0.88rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Payment Channel:</span>
             <span><strong>{data.method}</strong></span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginTop: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginTop: 4 }}>
             <span style={{ color: 'var(--text-muted)' }}>Payment Amount Charged:</span>
             <span><strong><Money amount={data.payment_amount} /></strong></span>
           </div>
         </div>
 
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Delivery Address</h3>
+          <h3 style={{ marginTop: 0 }}>Delivery Shipping Address</h3>
           {data.line1 ? (
             <div>
-              <p style={{ margin: 0, fontWeight: 600 }}>{data.line1}</p>
-              <p style={{ margin: '4px 0', color: 'var(--text-muted)' }}>
-                {data.city}, {data.state} - {data.pincode}
+              <p style={{ margin: 0, fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)' }}>{data.line1}</p>
+              <p style={{ margin: '6px 0', color: 'var(--text-secondary)' }}>
+                {data.city}, {data.state} - <strong>{data.pincode}</strong>
               </p>
+              <div style={{ marginTop: 12 }}>
+                <span className="badge badge-neutral">Standard Ground Delivery</span>
+              </div>
             </div>
           ) : (
             <p style={{ color: 'var(--text-muted)' }}>Address details unavailable</p>
@@ -203,8 +219,8 @@ export function OrderDetail() {
 
       {/* Line items table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', background: '#f8fafc' }}>
-          <h3 style={{ margin: 0 }}>Items in this order</h3>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-color)', background: '#f8fafc' }}>
+          <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Items in this order</h3>
         </div>
 
         <div className="table-responsive" style={{ margin: 0, border: 'none', borderRadius: 0 }}>
@@ -217,8 +233,8 @@ export function OrderDetail() {
                 <th>Unit Price</th>
                 <th>Qty</th>
                 <th>Line Total</th>
-                <th>Status</th>
-                <th>Action</th>
+                <th>Item Status</th>
+                <th>Action & Reviews</th>
               </tr>
             </thead>
             <tbody>
@@ -226,12 +242,12 @@ export function OrderDetail() {
                 <tr key={it.item_no}>
                   <td><strong>#{it.item_no}</strong></td>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{it.name}</div>
+                    <div style={{ fontWeight: 700 }}>{it.name}</div>
                     {it.brand && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{it.brand}</div>}
                   </td>
                   <td>{it.store_name}</td>
                   <td><Money amount={it.unit_price} /></td>
-                  <td>{it.quantity}</td>
+                  <td><strong>{it.quantity}</strong></td>
                   <td><strong><Money amount={it.line_total} /></strong></td>
                   <td><Badge status={it.item_status} /></td>
                   <td>
@@ -239,6 +255,7 @@ export function OrderDetail() {
                       <button
                         type="button"
                         className="btn-outline-danger btn-sm"
+                        disabled={busy}
                         onClick={() => setCancelModalItem(it)}
                       >
                         Cancel item
@@ -260,9 +277,30 @@ export function OrderDetail() {
                     )}
 
                     {it.reviewed && (
-                      <span style={{ fontSize: '0.82rem', color: 'var(--success)', fontWeight: 600 }}>
-                        ✓ Reviewed ({it.review_rating}★)
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--success)', fontWeight: 700 }}>
+                          ✓ Reviewed ({it.review_rating}★)
+                        </span>
+                        {it.review_comment && (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic', maxWidth: 180 }}>
+                            "{it.review_comment}"
+                          </span>
+                        )}
+                        {it.review_id && (
+                          <div>
+                            <button
+                              type="button"
+                              className="btn-outline-danger btn-sm"
+                              style={{ padding: '2px 8px', fontSize: '0.75rem', marginTop: 2 }}
+                              disabled={busy}
+                              onClick={() => handleDeleteReview(it)}
+                              title="Delete this review from the marketplace"
+                            >
+                              ✕ Delete Review
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -278,11 +316,11 @@ export function OrderDetail() {
         title="Confirm Item Cancellation"
         onClose={() => setCancelModalItem(null)}
       >
-        <p>
+        <p style={{ marginTop: 0 }}>
           Are you sure you want to cancel <strong>{cancelModalItem?.name}</strong> (Item #{cancelModalItem?.item_no})?
         </p>
-        <div className="alert alert-error" style={{ fontSize: '0.82rem' }}>
-          Database Trigger: The item quantity ({cancelModalItem?.quantity}) will be immediately restored to the seller's inventory.
+        <div className="alert alert-error" style={{ fontSize: '0.84rem' }}>
+          Database Trigger: The cancelled item quantity ({cancelModalItem?.quantity}) will be immediately restored back into the seller's inventory, and order totals recalculated.
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
           <button type="button" className="btn-secondary" onClick={() => setCancelModalItem(null)}>
@@ -306,39 +344,16 @@ export function OrderDetail() {
         onClose={() => setReviewModalItem(null)}
       >
         <form onSubmit={handleSaveReview}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6 }}>
-              Rating (1 to 5 Stars) *
-            </label>
-            <div style={{ display: 'flex', gap: 12 }}>
-              {[1, 2, 3, 4, 5].map(star => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setReviewRating(star)}
-                  style={{
-                    background: reviewRating >= star ? '#fef3c7' : '#f1f5f9',
-                    color: reviewRating >= star ? '#d97706' : '#94a3b8',
-                    border: '1px solid',
-                    borderColor: reviewRating >= star ? '#f59e0b' : '#cbd5e1',
-                    fontSize: '1.25rem',
-                    padding: '6px 12px',
-                    borderRadius: 'var(--radius-sm)'
-                  }}
-                >
-                  ★ {star}
-                </button>
-              ))}
-            </div>
+          <div style={{ marginBottom: 18 }}>
+            <label>Rating (1 to 5 Stars) *</label>
+            <StarRatingSelector value={reviewRating} onChange={setReviewRating} />
           </div>
 
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4 }}>
-              Your feedback / comment (Optional)
-            </label>
+            <label>Your Feedback / Comment (Optional)</label>
             <textarea
               rows={4}
-              placeholder="How was the product quality and delivery experience?"
+              placeholder="How was the product quality, packaging and delivery experience?"
               value={reviewComment}
               onChange={e => setReviewComment(e.target.value)}
             />

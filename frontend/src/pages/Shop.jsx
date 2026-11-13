@@ -1,7 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api.js';
-import { useLoad, useAct, Msg, Money, RatingStars, Badge } from '../ui.jsx';
+import { useLoad, useAct, Msg, Money, RatingStars, Badge, QuantityStepper } from '../ui.jsx';
+
+function getCategoryIcon(name) {
+  const n = String(name || '').toLowerCase();
+  if (n.includes('phone') || n.includes('mobile')) return '📱';
+  if (n.includes('laptop') || n.includes('computer')) return '💻';
+  if (n.includes('electronic') || n.includes('audio') || n.includes('headphone')) return '🎧';
+  if (n.includes('book')) return '📚';
+  if (n.includes('fashion') || n.includes('clothing') || n.includes('wear')) return '👕';
+  if (n.includes('home') || n.includes('furniture')) return '🏠';
+  if (n.includes('grocery') || n.includes('food')) return '🍎';
+  return '📦';
+}
 
 export function Shop() {
   const cats = useLoad('/categories');
@@ -10,9 +22,9 @@ export function Shop() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
-  const search = () => {
+  const searchWithParams = (filterObj) => {
     setLoading(true);
-    const params = new URLSearchParams(Object.entries(f).filter(([, v]) => v));
+    const params = new URLSearchParams(Object.entries(filterObj).filter(([, v]) => v));
     api('/products?' + params)
       .then(d => {
         setRes(d.results);
@@ -22,46 +34,75 @@ export function Shop() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(search, []);
+  const search = () => searchWithParams(f);
+
+  useEffect(() => {
+    search();
+  }, []);
 
   const setField = k => e => setF({ ...f, [k]: e.target.value });
 
+  const handleSelectCategory = (catId) => {
+    const updated = { ...f, category: catId };
+    setF(updated);
+    searchWithParams(updated);
+  };
+
   const clearFilters = () => {
-    setF({ q: '', category: '', min: '', max: '', sort: '' });
-    setLoading(true);
-    api('/products')
-      .then(d => setRes(d.results))
-      .catch(e => setErr(e.message))
-      .finally(() => setLoading(false));
+    const reset = { q: '', category: '', min: '', max: '', sort: '' };
+    setF(reset);
+    searchWithParams(reset);
   };
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1>Explore Products</h1>
-        <p style={{ color: 'var(--text-muted)' }}>
-          Browse shared multi-vendor catalogue, compare competitive prices, and shop with confidence.
+      {/* Hero Banner */}
+      <div className="hero-banner">
+        <div className="hero-badge">⚡ Multi-Vendor Shared Catalogue</div>
+        <h1>Discover Genuine Products & Best Prices</h1>
+        <p>
+          Compare verified independent sellers, evaluate live inventory counts, read authenticated buyer reviews, and checkout seamlessly.
         </p>
       </div>
 
+      {/* Quick Category Filter Pills */}
+      {cats.data && cats.data.length > 0 && (
+        <div className="category-filter-strip">
+          <button
+            type="button"
+            className={`cat-pill-btn ${!f.category ? 'active' : ''}`}
+            onClick={() => handleSelectCategory('')}
+          >
+            All Categories
+          </button>
+          {cats.data.map(c => (
+            <button
+              key={c.category_id}
+              type="button"
+              className={`cat-pill-btn ${String(f.category) === String(c.category_id) ? 'active' : ''}`}
+              onClick={() => handleSelectCategory(String(c.category_id))}
+            >
+              {getCategoryIcon(c.name)} {c.name} ({c.products_in_subtree})
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Search & Filter Bar */}
-      <div className="card" style={{ padding: '16px 20px', background: '#fff' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+      <div className="card" style={{ padding: '20px 24px', background: '#fff' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
-              SEARCH KEYWORD
-            </label>
+            <label>Search Keyword</label>
             <input
               placeholder="Search smartphone, laptop..."
               value={f.q}
               onChange={setField('q')}
+              onKeyDown={e => e.key === 'Enter' && search()}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
-              CATEGORY
-            </label>
+            <label>Category Filter</label>
             <select value={f.category} onChange={setField('category')}>
               <option value="">All categories</option>
               {cats.data?.map(c => (
@@ -74,9 +115,7 @@ export function Shop() {
 
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
-                MIN ₹
-              </label>
+              <label>Min ₹</label>
               <input
                 type="number"
                 placeholder="0"
@@ -85,9 +124,7 @@ export function Shop() {
               />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
-                MAX ₹
-              </label>
+              <label>Max ₹</label>
               <input
                 type="number"
                 placeholder="Any"
@@ -98,22 +135,20 @@ export function Shop() {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
-              SORT BY
-            </label>
+            <label>Sort By</label>
             <select value={f.sort} onChange={setField('sort')}>
-              <option value="">Default order</option>
+              <option value="">Catalogue Default</option>
               <option value="price">Price: Low to High</option>
-              <option value="rating">Customer Rating</option>
+              <option value="rating">Top Customer Rated</option>
             </select>
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
           <button type="button" className="btn-secondary" onClick={clearFilters}>
-            Reset
+            Reset Filters
           </button>
-          <button type="button" onClick={search}>
+          <button type="button" className="btn-primary" onClick={search}>
             Apply Filters
           </button>
         </div>
@@ -122,28 +157,33 @@ export function Shop() {
       {err && <div className="alert alert-error">{err}</div>}
 
       {loading ? (
-        <div className="empty-state">
-          <p>Loading catalogue products...</p>
+        <div className="card empty-state">
+          <div className="empty-state-icon">⏳</div>
+          <h4>Loading products...</h4>
+          <p>Fetching multi-vendor catalogue offers.</p>
         </div>
       ) : res?.length ? (
         <div className="products-grid">
           {res.map(p => (
             <div key={p.product_id} className="product-card">
+              <div className="product-card-thumb">
+                {getCategoryIcon(p.category)}
+              </div>
               <span className="product-category-chip">{p.category}</span>
               <h3 className="product-title">{p.name}</h3>
-              <div className="product-brand">{p.brand ? `By ${p.brand}` : 'Generic'}</div>
+              <div className="product-brand">{p.brand ? `By ${p.brand}` : 'Generic Brand'}</div>
 
-              <div style={{ marginBottom: 10 }}>
+              <div style={{ marginBottom: 12 }}>
                 <RatingStars rating={p.avg_rating} count={p.reviews} />
               </div>
 
               <div className="product-price-section">
                 <div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
                     Best offer from
                   </div>
                   <div className="product-price-val">
-                    {p.best_price ? <Money amount={p.best_price} /> : 'Out of stock'}
+                    {p.best_price ? <Money amount={p.best_price} /> : <span style={{ color: 'var(--danger)', fontSize: '1rem' }}>Out of stock</span>}
                   </div>
                 </div>
 
@@ -167,9 +207,12 @@ export function Shop() {
         </div>
       ) : (
         <div className="empty-state card">
+          <div className="empty-state-icon">🔍</div>
           <h4>No products found</h4>
           <p>Try searching for a different keyword or adjusting your category/price filters.</p>
-          <button className="btn-secondary" onClick={clearFilters}>Clear all filters</button>
+          <button type="button" className="btn-secondary" onClick={clearFilters} style={{ marginTop: 12 }}>
+            Clear all filters
+          </button>
         </div>
       )}
     </div>
@@ -197,7 +240,7 @@ export function Product({ user }) {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 18 }}>
         <Link to="/" className="btn btn-secondary btn-sm">
           ← Back to catalogue
         </Link>
@@ -206,29 +249,38 @@ export function Product({ user }) {
       <Msg m={msg} />
 
       {prod.data && (
-        <div className="card" style={{ marginBottom: 24 }}>
-          <span className="product-category-chip">{prod.data.category}</span>
-          <h2>{prod.data.name}</h2>
-          <div className="row" style={{ gap: 14, color: 'var(--text-muted)', marginBottom: 14 }}>
-            <span>Brand: <strong>{prod.data.brand || 'Unbranded'}</strong></span>
-            <span>•</span>
-            <RatingStars rating={prod.data.avg_rating} count={prod.data.reviews} />
+        <div className="card" style={{ marginBottom: 28, position: 'relative' }}>
+          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+            <div className="product-card-thumb" style={{ width: 100, height: 100, fontSize: '2.5rem', flexShrink: 0 }}>
+              {getCategoryIcon(prod.data.category)}
+            </div>
+            <div style={{ flex: 1 }}>
+              <span className="product-category-chip">{prod.data.category}</span>
+              <h2 style={{ margin: '6px 0 8px' }}>{prod.data.name}</h2>
+              <div className="row" style={{ gap: 14, color: 'var(--text-muted)', marginBottom: 12 }}>
+                <span>Brand: <strong>{prod.data.brand || 'Unbranded'}</strong></span>
+                <span>•</span>
+                <RatingStars rating={prod.data.avg_rating} count={prod.data.reviews} />
+              </div>
+              {prod.data.description && (
+                <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0, fontSize: '0.95rem' }}>
+                  {prod.data.description}
+                </p>
+              )}
+            </div>
           </div>
-          {prod.data.description && (
-            <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
-              {prod.data.description}
-            </p>
-          )}
         </div>
       )}
 
       <h3>Seller Offers & Price Comparison</h3>
       <p style={{ color: 'var(--text-muted)', marginTop: -6, marginBottom: 16 }}>
-        Multiple verified sellers offer this item out of the shared catalogue. Choose the best price and seller rating.
+        Multiple verified sellers offer this item out of the shared catalogue. Compare price, live stock and ratings.
       </p>
 
       {offers.loading ? (
-        <p>Loading seller offers...</p>
+        <div className="card empty-state">
+          <p>Loading seller offers...</p>
+        </div>
       ) : offers.data?.length ? (
         <div className="table-responsive">
           <table>
@@ -237,16 +289,16 @@ export function Product({ user }) {
                 <th>Seller / Store</th>
                 <th>Seller Rating</th>
                 <th>Stock Availability</th>
-                <th>Price</th>
-                {(!user || user.role === 'customer') && <th style={{ width: 220 }}>Action</th>}
+                <th>Offer Price</th>
+                {(!user || user.role === 'customer') && <th style={{ width: 240 }}>Action</th>}
               </tr>
             </thead>
             <tbody>
               {offers.data.map(o => (
                 <tr key={o.listing_id}>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{o.store_name}</div>
-                    <div style={{ marginTop: 2 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{o.store_name}</div>
+                    <div style={{ marginTop: 3 }}>
                       <Badge status={o.is_verified} type="verified" />
                     </div>
                   </td>
@@ -261,7 +313,7 @@ export function Product({ user }) {
                     )}
                   </td>
                   <td>
-                    <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)' }}>
                       <Money amount={o.price} />
                     </span>
                   </td>
@@ -269,14 +321,13 @@ export function Product({ user }) {
                     <td>
                       {user ? (
                         o.stock_qty > 0 ? (
-                          <div className="row" style={{ gap: 6 }}>
-                            <input
-                              type="number"
-                              min="1"
-                              max={o.stock_qty}
+                          <div className="row" style={{ gap: 8 }}>
+                            <QuantityStepper
                               value={quantities[o.listing_id] || 1}
-                              onChange={e => handleQtyChange(o.listing_id, e.target.value)}
-                              style={{ width: 64, padding: '6px 8px' }}
+                              min={1}
+                              max={o.stock_qty}
+                              onChange={v => handleQtyChange(o.listing_id, v)}
+                              disabled={busy}
                             />
                             <button
                               type="button"
@@ -284,12 +335,12 @@ export function Product({ user }) {
                               disabled={busy}
                               onClick={() => addToCart(o)}
                             >
-                              Add to Cart
+                              Add to Cart 🛒
                             </button>
                           </div>
                         ) : (
                           <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                            Unavailable
+                            Currently Unavailable
                           </span>
                         )
                       ) : (
@@ -312,9 +363,9 @@ export function Product({ user }) {
       )}
 
       {!user && (
-        <div className="card" style={{ background: 'var(--primary-light)', borderColor: '#bfdbfe', marginTop: 20 }}>
-          <p style={{ margin: 0 }}>
-            Want to purchase? <Link to="/login" style={{ fontWeight: 600, color: 'var(--accent)' }}>Sign in as customer</Link> to add items to your cart.
+        <div className="card" style={{ background: 'var(--primary-light)', borderColor: '#bfdbfe', marginTop: 24 }}>
+          <p style={{ margin: 0, fontWeight: 500 }}>
+            Want to purchase? <Link to="/login" style={{ fontWeight: 700, color: 'var(--accent)' }}>Sign in as customer</Link> to add items to your cart and checkout.
           </p>
         </div>
       )}

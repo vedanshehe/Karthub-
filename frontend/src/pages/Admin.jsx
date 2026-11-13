@@ -8,6 +8,7 @@ export function Admin() {
   const sellers = useLoad('/admin/sellers');
   const coupons = useLoad('/admin/coupons');
   const cats = useLoad('/categories');
+  const adminProds = useLoad('/admin/products');
   const [msg, run, busy] = useAct();
 
   // Create coupon modal
@@ -64,6 +65,14 @@ export function Admin() {
     });
   };
 
+  const handleDeleteCoupon = (c) => {
+    if (!confirm(`Are you sure you want to delete coupon "${c.code}"?`)) return;
+    run(
+      () => api('/admin/coupons/' + c.code, { method: 'DELETE' }),
+      `Coupon "${c.code}" deleted from marketplace.`
+    ).then(coupons.reload).catch(e => alert(e.message));
+  };
+
   const handleCreateCategory = (e) => {
     e.preventDefault();
     run(
@@ -80,7 +89,19 @@ export function Admin() {
       setCatName('');
       setCatParent('');
       cats.reload();
+      summary.reload();
     });
+  };
+
+  const handleDeleteCategory = (cat) => {
+    if (!confirm(`Are you sure you want to delete category "${cat.name}"? If it has child categories or products, it cannot be deleted.`)) return;
+    run(
+      () => api('/admin/categories/' + cat.category_id, { method: 'DELETE' }),
+      `Category "${cat.name}" removed.`
+    ).then(() => {
+      cats.reload();
+      summary.reload();
+    }).catch(e => alert(e.message));
   };
 
   const handleCreateProduct = (e) => {
@@ -99,8 +120,20 @@ export function Admin() {
     ).then(() => {
       setIsProdModalOpen(false);
       setProdForm({ category_id: '', name: '', brand: '', description: '' });
+      adminProds.reload();
       summary.reload();
     });
+  };
+
+  const handleDeleteProduct = (prod) => {
+    if (!confirm(`Are you sure you want to delete product "${prod.name}"? If any seller has created listings for it, deletion will be rejected.`)) return;
+    run(
+      () => api('/admin/products/' + prod.product_id, { method: 'DELETE' }),
+      `Product "${prod.name}" removed from catalogue.`
+    ).then(() => {
+      adminProds.reload();
+      summary.reload();
+    }).catch(e => alert(e.message));
   };
 
   return (
@@ -108,7 +141,7 @@ export function Admin() {
       <div style={{ marginBottom: 20 }}>
         <h2>Marketplace Administration</h2>
         <p style={{ color: 'var(--text-muted)', marginTop: -6 }}>
-          Manage multi-vendor seller verifications, promotional coupons and marketplace catalogue.
+          Platform controls for vendor verification, promotional coupons and catalogue asset management.
         </p>
       </div>
 
@@ -167,7 +200,7 @@ export function Admin() {
                 Manage Coupons
               </button>
               <button type="button" className="btn btn-primary" onClick={() => setTab('Catalogue')}>
-                Add to Catalogue
+                Catalogue Management
               </button>
             </div>
           </div>
@@ -231,7 +264,12 @@ export function Admin() {
       {tab === 'Coupons' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <h3>Marketplace Coupons ({coupons.data?.length || 0})</h3>
+            <div>
+              <h3 style={{ margin: '0 0 4px' }}>Marketplace Coupons ({coupons.data?.length || 0})</h3>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Create promotional discount coupons or delete unused ones.
+              </span>
+            </div>
             <button
               type="button"
               className="btn btn-primary"
@@ -254,6 +292,7 @@ export function Admin() {
                     <th>Usage Count</th>
                     <th>Validity Period</th>
                     <th>Status</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -277,6 +316,17 @@ export function Admin() {
                             {isActive ? 'Active' : 'Expired/Used'}
                           </span>
                         </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-outline-danger btn-sm"
+                            disabled={busy}
+                            onClick={() => handleDeleteCoupon(c)}
+                            title="Delete coupon"
+                          >
+                            Delete
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -293,9 +343,7 @@ export function Admin() {
           >
             <form onSubmit={handleCreateCoupon}>
               <div style={{ marginBottom: 12 }}>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                  Coupon Code *
-                </label>
+                <label>Coupon Code *</label>
                 <input
                   type="text"
                   required
@@ -307,9 +355,7 @@ export function Admin() {
 
               <div className="grid-2" style={{ marginBottom: 12 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                    Discount Percentage (1-90%) *
-                  </label>
+                  <label>Discount Percentage (1-90%) *</label>
                   <input
                     type="number"
                     min="1"
@@ -320,9 +366,7 @@ export function Admin() {
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                    Min Order Value (₹)
-                  </label>
+                  <label>Min Order Value (₹)</label>
                   <input
                     type="number"
                     min="0"
@@ -334,9 +378,7 @@ export function Admin() {
 
               <div className="grid-2" style={{ marginBottom: 12 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                    Valid From *
-                  </label>
+                  <label>Valid From *</label>
                   <input
                     type="date"
                     required
@@ -345,9 +387,7 @@ export function Admin() {
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                    Valid To *
-                  </label>
+                  <label>Valid To *</label>
                   <input
                     type="date"
                     required
@@ -358,9 +398,7 @@ export function Admin() {
               </div>
 
               <div style={{ marginBottom: 18 }}>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                  Maximum Allowed Uses *
-                </label>
+                <label>Maximum Allowed Uses *</label>
                 <input
                   type="number"
                   min="1"
@@ -386,18 +424,17 @@ export function Admin() {
       {/* CATALOGUE TAB */}
       {tab === 'Catalogue' && (
         <div>
-          <div className="grid-2">
+          {/* Creation Forms */}
+          <div className="grid-2" style={{ marginBottom: 28 }}>
             {/* Create Category Card */}
-            <div className="card">
+            <div className="card" style={{ margin: 0 }}>
               <h3 style={{ marginTop: 0 }}>Add New Category</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                 Add root categories or sub-categories. Cycle prevention is checked by database triggers.
               </p>
               <form onSubmit={handleCreateCategory}>
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                    Category Name *
-                  </label>
+                  <label>Category Name *</label>
                   <input
                     type="text"
                     required
@@ -407,9 +444,7 @@ export function Admin() {
                   />
                 </div>
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                    Parent Category (Optional)
-                  </label>
+                  <label>Parent Category (Optional)</label>
                   <select value={catParent} onChange={e => setCatParent(e.target.value)}>
                     <option value="">None (Root category)</option>
                     {cats.data?.map(c => (
@@ -426,16 +461,14 @@ export function Admin() {
             </div>
 
             {/* Create Product Card */}
-            <div className="card">
+            <div className="card" style={{ margin: 0 }}>
               <h3 style={{ marginTop: 0 }}>Add New Product</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                 Create a catalogue entry that any independent seller can list offers for.
               </p>
               <form onSubmit={handleCreateProduct}>
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                    Category *
-                  </label>
+                  <label>Category *</label>
                   <select
                     required
                     value={prodForm.category_id}
@@ -451,9 +484,7 @@ export function Admin() {
                 </div>
 
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                    Product Name *
-                  </label>
+                  <label>Product Name *</label>
                   <input
                     type="text"
                     required
@@ -464,9 +495,7 @@ export function Admin() {
                 </div>
 
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                    Brand Name
-                  </label>
+                  <label>Brand Name</label>
                   <input
                     type="text"
                     placeholder="e.g. Apple"
@@ -476,9 +505,7 @@ export function Admin() {
                 </div>
 
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                    Description
-                  </label>
+                  <label>Description</label>
                   <textarea
                     rows={2}
                     placeholder="Key specifications and product details..."
@@ -492,6 +519,106 @@ export function Admin() {
                 </button>
               </form>
             </div>
+          </div>
+
+          {/* Manage Existing Categories */}
+          <div className="card" style={{ marginBottom: 24 }}>
+            <h3 style={{ marginTop: 0 }}>Categories ({cats.data?.length || 0})</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: -6 }}>
+              Categories can only be deleted if they contain no products and no subcategories.
+            </p>
+            {cats.loading ? (
+              <p>Loading categories...</p>
+            ) : (
+              <div className="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Category Name</th>
+                      <th>Parent Category ID</th>
+                      <th>Subtree Products</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cats.data?.map(c => (
+                      <tr key={c.category_id}>
+                        <td>#{c.category_id}</td>
+                        <td><strong>{c.name}</strong></td>
+                        <td>{c.parent_id ? `#${c.parent_id}` : 'Root'}</td>
+                        <td>{c.products_in_subtree} items</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-outline-danger btn-sm"
+                            disabled={busy}
+                            onClick={() => handleDeleteCategory(c)}
+                            title="Delete category"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Manage Existing Products */}
+          <div className="card">
+            <h3 style={{ marginTop: 0 }}>Catalogue Products ({adminProds.data?.length || 0})</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: -6 }}>
+              Products can be deleted only if no seller listings are currently associated with them.
+            </p>
+            {adminProds.loading ? (
+              <p>Loading products...</p>
+            ) : (
+              <div className="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Product Name</th>
+                      <th>Brand</th>
+                      <th>Category</th>
+                      <th>Active Listings</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminProds.data?.map(p => (
+                      <tr key={p.product_id}>
+                        <td>#{p.product_id}</td>
+                        <td><strong>{p.name}</strong></td>
+                        <td>{p.brand || '-'}</td>
+                        <td><span className="product-category-chip">{p.category_name}</span></td>
+                        <td>
+                          {p.total_listings > 0 ? (
+                            <span className="badge badge-info">{p.total_listings} listing(s)</span>
+                          ) : (
+                            <span className="badge badge-neutral">No listings</span>
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-outline-danger btn-sm"
+                            disabled={busy}
+                            onClick={() => handleDeleteProduct(p)}
+                            title="Delete product"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

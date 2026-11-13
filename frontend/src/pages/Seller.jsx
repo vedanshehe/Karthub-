@@ -84,6 +84,14 @@ function Listings() {
     ).then(reload);
   };
 
+  const handleDeleteListing = (listing) => {
+    if (!confirm(`Are you sure you want to delete listing #${listing.listing_id} ("${listing.name}")? Un-ordered listings are permanently deleted; ordered listings will be deactivated.`)) return;
+    run(
+      () => api('/seller/listings/' + listing.listing_id, { method: 'DELETE' }),
+      'Listing removed or deactivated.'
+    ).then(reload).catch(e => alert(e.message));
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -177,6 +185,15 @@ function Listings() {
                         onClick={() => toggleActive(l)}
                       >
                         {l.is_active ? 'Hide' : 'Publish'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-outline-danger btn-sm"
+                        disabled={busy}
+                        onClick={() => handleDeleteListing(l)}
+                        title="Delete listing"
+                      >
+                        Delete
                       </button>
                     </div>
                   </td>

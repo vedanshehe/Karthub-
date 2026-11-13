@@ -35,4 +35,21 @@ r.post('/', wrap(async (req, res) => {
   res.status(201).json(rows[0]);
 }));
 
+// DELETE /api/reviews/:id  (customer deletes their own review)
+r.delete('/:id', wrap(async (req, res) => {
+  const reviewId = Number(req.params.id);
+  if (!Number.isInteger(reviewId)) throw new HttpError(400, 'review_id must be an integer');
+
+  const { rowCount } = await query(`
+    DELETE FROM review r
+    USING orders o, order_item oi
+    WHERE r.review_id = $1
+      AND (r.order_id, r.item_no) = (oi.order_id, oi.item_no)
+      AND oi.order_id = o.order_id
+      AND o.user_id = $2`, [reviewId, req.user.id]);
+
+  if (!rowCount) throw new HttpError(404, 'Review not found');
+  res.status(204).end();
+}));
+
 export default r;

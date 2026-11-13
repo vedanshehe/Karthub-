@@ -98,8 +98,8 @@ export function RatingStars({ rating, count }) {
   const stars = '★'.repeat(full) + '☆'.repeat(5 - full);
   return (
     <span className="rating-stars">
-      <span>{stars}</span>
-      <span style={{ fontWeight: 600, color: 'var(--text-main)', marginLeft: 4 }}>
+      <span className="stars-glow">{stars}</span>
+      <span style={{ fontWeight: 700, color: 'var(--text-main)', marginLeft: 6 }}>
         {r > 0 ? r.toFixed(1) : 'New'}
       </span>
       {count != null && <span className="rating-count">({count})</span>}
@@ -107,14 +107,79 @@ export function RatingStars({ rating, count }) {
   );
 }
 
+export function StarRatingSelector({ value, onChange, max = 5 }) {
+  const [hover, setHover] = useState(0);
+  const labels = ['', 'Poor', 'Fair', 'Average', 'Good', 'Excellent'];
+  return (
+    <div className="star-rating-selector" role="radiogroup" aria-label="Rating selector">
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        {Array.from({ length: max }, (_, i) => i + 1).map((star) => (
+          <button
+            key={star}
+            type="button"
+            role="radio"
+            aria-checked={value === star}
+            aria-label={`${star} star${star > 1 ? 's' : ''}`}
+            className={`star-picker-btn ${star <= (hover || value) ? 'active' : ''}`}
+            onMouseEnter={() => setHover(star)}
+            onMouseLeave={() => setHover(0)}
+            onClick={() => onChange(star)}
+          >
+            ★
+          </button>
+        ))}
+        <span className="star-picker-label">
+          {labels[hover || value] || `${value || 0} / ${max}`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function QuantityStepper({ value, min = 1, max, onChange, disabled }) {
+  const val = Math.max(min, Number(value) || min);
+  return (
+    <div className="qty-stepper">
+      <button
+        type="button"
+        className="qty-btn"
+        disabled={disabled || val <= min}
+        onClick={() => onChange(val - 1)}
+        aria-label="Decrease quantity"
+      >
+        −
+      </button>
+      <span className="qty-value">{val}</span>
+      <button
+        type="button"
+        className="qty-btn"
+        disabled={disabled || (max != null && val >= max)}
+        onClick={() => onChange(val + 1)}
+        aria-label="Increase quantity"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
 export function Modal({ isOpen, title, onClose, children, footer }) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div className="modal-card" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>{title}</h3>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <h3 id="modal-title">{title}</h3>
+          <button className="modal-close" onClick={onClose} aria-label="Close modal">✕</button>
         </div>
         <div className="modal-body">
           {children}

@@ -64,6 +64,28 @@ r.put('/listings/:id', wrap(async (req, res) => {
   res.json(rows[0]);
 }));
 
+// DELETE /api/seller/listings/:id  (permanently delete un-ordered listing, or deactivate if ordered)
+r.delete('/listings/:id', wrap(async (req, res) => {
+  const listingId = Number(req.params.id);
+  if (!Number.isInteger(listingId)) throw new HttpError(400, 'listing id must be an integer');
+
+  const check = await query('SELECT listing_id FROM listing WHERE listing_id=$1 AND seller_id=$2', [listingId, req.user.id]);
+  if (!check.rowCount) throw new HttpError(404, 'Listing not found');
+
+  const hasOrders = await query('SELECT 1 FROM order_item WHERE listing_id=$1 LIMIT 1', [listingId]);
+  if (hasOrders.rowCount) {
+    await query('UPDATE listing SET is_active=FALSE WHERE listing_id=$1', [listingId]);
+    return res.status(200).json({
+      deleted: false,
+      is_active: false,
+      message: 'Listing has past orders and cannot be removed; deactivated instead'
+    });
+  }
+
+  await query('DELETE FROM listing WHERE listing_id=$1 AND seller_id=$2', [listingId, req.user.id]);
+  res.status(204).end();
+}));
+
 // GET /api/seller/catalogue?q=  -> catalogue products a seller can create a listing for
 r.get('/catalogue', wrap(async (req, res) => {
   const { rows } = await query(`

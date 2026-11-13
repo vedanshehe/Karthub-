@@ -156,11 +156,11 @@ Registering through the UI always creates a customer, or a seller if you tick "R
 
 | What | Command (run from) | Expected |
 |---|---|---|
-| Database integrity (41 tests) | `psql -U postgres -d karthub -P pager=off -f db/tests.sql` (repo root) | `passed 41, failed 0`. Rolls back, so data is untouched |
+| Database integrity (57 tests) | `psql -U postgres -d karthub -P pager=off -f db/tests.sql` (repo root) | `passed 57, failed 0`. Rolls back, so data is untouched |
 | The six SQL queries | `psql -U postgres -d karthub -P pager=off -f db/queries.sql` (repo root) | Result tables for Q1-Q6 |
 | EXPLAIN ANALYZE evidence | `psql -U postgres -d karthub -o docs/explain_results.txt -f db/explain.sql` (repo root) | Plans with and without each index; data unchanged |
-| API end-to-end (36 checks) | `npm test` (in `backend/`, API must be running) | `All checks passed` |
-| API including admin checks (42 checks) | PowerShell: `$env:ADMIN_EMAIL="admin@karthub.dev"; $env:ADMIN_PASSWORD="secret1"; npm test` | Six extra PASS lines (all 42 checks pass) |
+| API end-to-end (46 checks) | `npm test` (in `backend/`, API must be running) | `All checks passed` |
+| API including admin checks (56 checks) | PowerShell: `$env:ADMIN_EMAIL="admin@karthub.dev"; $env:ADMIN_PASSWORD="secret1"; npm test` | Extra PASS lines for admin & object deletions (all 56 checks pass) |
 
 `npm test` creates its own users and listing each run, using product id 1 (set `PRODUCT_ID` to change it). Re-run `db/setup.sql` any time you want a clean slate.
 
@@ -207,9 +207,9 @@ Base URL `http://localhost:4000/api`. JWT in the `Authorization: Bearer <token>`
 | Cart | `GET /cart`, `PUT /cart`, `DELETE /cart/:listingId` |
 | Addresses | `GET/POST /addresses`, `PUT/DELETE /addresses/:id` |
 | Orders | `POST /orders/checkout`, `GET /orders`, `GET /orders/:id`, `POST /orders/:id/items/:n/cancel` |
-| Reviews | `POST /reviews` |
-| Seller | `GET/POST /seller/listings`, `PUT /seller/listings/:id`, `GET /seller/catalogue`, `GET /seller/order-items`, `PUT /seller/order-items/:order/:item`, `GET /seller/dashboard` |
-| Admin | `GET /admin/sellers`, `PUT /admin/sellers/:id/verify`, `GET/POST /admin/coupons` |
+| Reviews | `POST /reviews`, `DELETE /reviews/:id` |
+| Seller | `GET/POST /seller/listings`, `PUT/DELETE /seller/listings/:id`, `GET /seller/catalogue`, `GET /seller/order-items`, `PUT /seller/order-items/:order/:item`, `GET /seller/dashboard` |
+| Admin | `GET /admin/summary`, `GET/PUT /admin/sellers`, `GET/POST/DELETE /admin/coupons`, `POST/DELETE /admin/categories`, `GET/POST/DELETE /admin/products` |
 
 Database errors map to HTTP codes in `backend/src/server.js`: unique, check and foreign-key violations return 409, trigger errors return 422, bad input 400, missing or wrong login 401, wrong role 403.
 

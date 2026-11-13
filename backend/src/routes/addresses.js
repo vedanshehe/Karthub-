@@ -85,8 +85,25 @@ r.put('/:id', wrap(async (req, res) => {
 
 // DELETE /api/addresses/:id
 r.delete('/:id', wrap(async (req, res) => {
-  const { rowCount } = await query('DELETE FROM address WHERE address_id=$1 AND user_id=$2', [req.params.id, req.user.id]);
-  if (!rowCount) throw new HttpError(404, 'Address not found');
+  const addrId = Number(req.params.id);
+  if (!Number.isInteger(addrId)) throw new HttpError(400, 'address_id must be an integer');
+
+  await withTx(async c => {
+    const cur = await c.query('SELECT is_default FROM address WHERE address_id=$1 AND user_id=$2', [addrId, req.user.id]);
+    if (!cur.rowCount) throw new HttpError(404, 'Address not found');
+    const wasDefault = cur.rows[0].is_default;
+
+    await c.query('DELETE FROM address WHERE address_id=$1 AND user_id=$2', [addrId, req.user.id]);
+
+    if (wasDefault) {
+      await c.query(`
+        UPDATE address SET is_default=TRUE
+        WHERE address_id = (SELECT address_id FROM address WHERE user_id=$1 ORDER BY address_id LIMIT 1)`,
+        [req.user.id]
+      );
+    }
+  });
+
   res.status(204).end();
 }));
 

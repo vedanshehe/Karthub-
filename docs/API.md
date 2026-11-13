@@ -371,6 +371,10 @@ Submits a rating (1-5) and comment for a purchased line item.
   }
   ```
 
+### `DELETE /reviews/:id`
+Permanently deletes a review authored by the authenticated customer (204 No Content). Once deleted, the customer is free to submit a new review for that delivered order item.
+- **Access**: Protected (Customer)
+
 ---
 
 ## 7. Address Book Routes (`/api/addresses`)
@@ -405,6 +409,10 @@ Creates an active listing for a catalogue product.
 Updates price, stock, or toggles visibility (`is_active`).
 - **Access**: Protected (`role: seller`)
 
+### `DELETE /seller/listings/:id`
+Permanently removes un-ordered listing (204 No Content). If the listing has historical order lines, it deactivates the listing (`is_active = FALSE`) and returns 200 OK with explanatory message.
+- **Access**: Protected (`role: seller`)
+
 ### `GET /seller/order-items`
 Lists order lines containing this seller's products, including shipping destinations.
 - **Access**: Protected (`role: seller`)
@@ -434,6 +442,10 @@ Returns seller KPI cards, monthly revenue, best-selling products, low-stock aler
 - `PUT /admin/sellers/:id/verify`: Toggles seller `is_verified` `{ is_verified: true | false }`.
 - `GET /admin/coupons`: Lists promotional coupons and current usage counts.
 - `POST /admin/coupons`: Creates a coupon `{ code, discount_pct, min_order_value, valid_from, valid_to, max_uses }`.
+- `DELETE /admin/coupons/:code`: Deletes unused coupon (200 OK). Blocked with 409 Conflict if historical orders reference it.
 - `POST /admin/categories`: Adds category to catalogue `{ name, parent_id? }` (cycle checked by `trg_category_cycle`).
+- `DELETE /admin/categories/:id`: Deletes empty category (200 OK). Blocked with 409 Conflict if category contains products.
+- `GET /admin/products`: Lists catalogue products with category name and total listings count.
 - `POST /admin/products`: Adds new product to shared catalogue `{ category_id, name, brand?, description? }`.
+- `DELETE /admin/products/:id`: Deletes unlisted product (200 OK). Blocked with 409 Conflict if active or past listings reference it.
 

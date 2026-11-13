@@ -190,6 +190,93 @@ CALL pg_temp.expect_fail('E4  a second review of the same item is refused (UNIQU
 -- ---------------- F. every deferred rule holds for all rows created above ----------------
 CALL pg_temp.expect_ok('F1  all deferred (COMMIT-time) checks pass for the fixture data', 'SET CONSTRAINTS ALL IMMEDIATE');
 
+-- ---------------- G. deletion and cascade / restrict edge cases ----------------
+-- G1: Deleting a cart item really removes it
+INSERT INTO cart_item(user_id, listing_id, quantity) VALUES (pg_temp.f('c1'), pg_temp.f('lst'), 3);
+DELETE FROM cart_item WHERE user_id = pg_temp.f('c1') AND listing_id = pg_temp.f('lst');
+CALL pg_temp.expect_true('G1  deleting a cart item actually removes the row (count = 0)',
+  $q$SELECT COUNT(*) = 0 FROM cart_item WHERE user_id = pg_temp.f('c1') AND listing_id = pg_temp.f('lst')$q$);
+
+-- G2: Deleting an unreferenced address really removes it
+INSERT INTO address(user_id, line1, city, state, pincode, is_default)
+VALUES (pg_temp.f('c1'), 'Unreferenced St', 'Hyd', 'TS', '500099', false);
+DELETE FROM address WHERE line1 = 'Unreferenced St' AND user_id = pg_temp.f('c1');
+CALL pg_temp.expect_true('G2  deleting an unreferenced address actually removes the row (count = 0)',
+  $q$SELECT COUNT(*) = 0 FROM address WHERE line1 = 'Unreferenced St'$q$);
+
+-- G3: Deleting an address referenced by an order is refused by FK constraint (23503)
+CALL pg_temp.expect_fail('G3  deleting an address linked to an existing order is refused (FK RESTRICT)',
+  $q$DELETE FROM address WHERE address_id = pg_temp.f('a1')$q$, '23503');
+
+-- G4: Deleting a review really removes it and allows re-reviewing the delivered item
+DELETE FROM review WHERE order_id = pg_temp.f('o1') AND item_no = 1;
+CALL pg_temp.expect_true('G4  deleting a review actually removes the row (count = 0)',
+  $q$SELECT COUNT(*) = 0 FROM review WHERE order_id = pg_temp.f('o1') AND item_no = 1$q$);
+CALL pg_temp.expect_ok('G5  re-reviewing the delivered item after deletion is accepted',
+  $q$INSERT INTO review(order_id, item_no, rating, comment) VALUES (pg_temp.f('o1'), 1, 4, 'updated review')$q$);
+
+-- G6: Deleting an un-ordered listing really removes it
+INSERT INTO product(category_id, name, brand) VALUES (pg_temp.f('cat'), 'T Product 2', 'T Brand');
+INSERT INTO listing(seller_id, product_id, price, stock_qty)
+VALUES (pg_temp.f('s1'), (SELECT product_id FROM product WHERE name = 'T Product 2'), 999, 5);
+DELETE FROM listing WHERE seller_id = pg_temp.f('s1') AND price = 999;
+CALL pg_temp.expect_true('G6  deleting an un-ordered listing actually removes the row (count = 0)',
+  $q$SELECT COUNT(*) = 0 FROM listing WHERE seller_id = pg_temp.f('s1') AND price = 999$q$);
+
+-- G7: Deleting an ordered listing is refused by FK constraint (23503)
+CALL pg_temp.expect_fail('G7  deleting a listing that has order history is refused (FK RESTRICT)',
+  $q$DELETE FROM listing WHERE listing_id = pg_temp.f('lst')$q$, '23503');
+
+-- G8: Deleting an unused coupon really removes it
+INSERT INTO coupon(code, discount_pct, valid_from, valid_to, max_uses)
+VALUES ('T_UNUSED', 15, CURRENT_DATE, CURRENT_DATE + 5, 10);
+DELETE FROM coupon WHERE code = 'T_UNUSED';
+CALL pg_temp.expect_true('G8  deleting an unused coupon actually removes the row (count = 0)',
+  $q$SELECT COUNT(*) = 0 FROM coupon WHERE code = 'T_UNUSED'$q$);
+
+-- G9: Deleting a used coupon is refused by FK constraint (23503)
+CALL pg_temp.expect_fail('G9  deleting a coupon that has been used in orders is refused (FK RESTRICT)',
+  $q$DELETE FROM coupon WHERE code = 'T_ONCE'$q$, '23503');
+
+-- G10: Deleting a category that contains products is refused by FK constraint (23503)
+CALL pg_temp.expect_fail('G10 deleting a category containing catalogue products is refused (FK RESTRICT)',
+  $q$DELETE FROM category WHERE category_id = pg_temp.f('cat')$q$, '23503');
+
+-- G11: Deleting an empty category really removes it from category
+INSERT INTO category(name, parent_id) VALUES ('T Empty Cat', NULL);
+DELETE FROM category WHERE name = 'T Empty Cat';
+CALL pg_temp.expect_true('G11 deleting an empty category actually removes the row (count = 0)',
+  $q$SELECT COUNT(*) = 0 FROM category WHERE name = 'T Empty Cat'$q$);
+
+-- G12: Deleting a category with subcategories sets the child's parent_id to NULL (ON DELETE SET NULL)
+INSERT INTO category(name, parent_id) VALUES ('T Parent Cat', NULL);
+INSERT INTO category(name, parent_id) VALUES ('T Child Cat', (SELECT category_id FROM category WHERE name = 'T Parent Cat'));
+DELETE FROM category WHERE name = 'T Parent Cat';
+CALL pg_temp.expect_true('G12 deleting category with subcategories sets child parent_id to NULL (ON DELETE SET NULL)',
+  $q$SELECT parent_id IS NULL FROM category WHERE name = 'T Child Cat'$q$);
+
+-- G13: Deleting an unlisted product really removes it from product
+INSERT INTO product(category_id, name, brand) VALUES (pg_temp.f('cat'), 'T Unlisted Prod', 'Brand X');
+DELETE FROM product WHERE name = 'T Unlisted Prod';
+CALL pg_temp.expect_true('G13 deleting an unlisted product actually removes the row (count = 0)',
+  $q$SELECT COUNT(*) = 0 FROM product WHERE name = 'T Unlisted Prod'$q$);
+
+-- G14: Deleting a product that has listings is refused by FK RESTRICT (23503)
+CALL pg_temp.expect_fail('G14 deleting a product referenced by seller listings is refused (FK RESTRICT)',
+  $q$DELETE FROM product WHERE product_id = (SELECT product_id FROM listing WHERE listing_id = pg_temp.f('lst'))$q$, '23503');
+
+-- G15: User cascading deletion on cart_item (when a user is deleted, their cart items are automatically cascaded)
+INSERT INTO app_user(email, password_hash, full_name, role) VALUES ('cascadetest@karthub.dev', 'hash', 'Cascade User', 'customer');
+INSERT INTO cart_item(user_id, listing_id, quantity)
+VALUES ((SELECT user_id FROM app_user WHERE email = 'cascadetest@karthub.dev'), pg_temp.f('lst'), 2);
+DELETE FROM app_user WHERE email = 'cascadetest@karthub.dev';
+CALL pg_temp.expect_true('G15 deleting user cascades and deletes their cart items',
+  $q$SELECT COUNT(*) = 0 FROM cart_item WHERE quantity = 2 AND user_id NOT IN (SELECT user_id FROM app_user)$q$);
+
+-- G16: Deleting a user who has placed orders is refused by FK RESTRICT
+CALL pg_temp.expect_fail('G16 deleting a customer who has order history is refused (FK RESTRICT)',
+  $q$DELETE FROM app_user WHERE user_id = pg_temp.f('c1')$q$, '23503');
+
 -- ---------------- report ----------------
 \set QUIET off
 \echo

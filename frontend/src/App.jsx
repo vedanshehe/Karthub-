@@ -17,6 +17,7 @@ function Nav({ user, onLogout }) {
     <header>
       <nav>
         <Link to="/" className="brand-logo">
+          <div className="brand-icon-wrap">⚡</div>
           <span>KartHub</span>
           <span className="brand-badge">Marketplace</span>
         </Link>
