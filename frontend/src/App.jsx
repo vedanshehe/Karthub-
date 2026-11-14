@@ -134,7 +134,7 @@ function Footer() {
             <span>•</span>
             <span>Multi-Vendor Shared Catalogue</span>
             <span>•</span>
-            <span>Hodo Stays Aesthetic</span>
+            <span>Clean Minimalist Aesthetic</span>
           </div>
         </div>
       </div>

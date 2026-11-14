@@ -195,7 +195,7 @@ export function Shop() {
         </p>
       </div>
 
-      {/* Floating Pill Search Bar (Hodo Stays Style) */}
+      {/* Floating Pill Search Bar */}
       <form onSubmit={handleSearchSubmit} className="search-widget-bar">
         <span style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginLeft: 4 }}>🔍</span>
         <input

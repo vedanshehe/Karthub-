@@ -1,8 +1,8 @@
-/* KartHub Design System - Inspired by Hodo Stays (hodostays.com)
+/* KartHub Design System
    Warm Minimalist, Editorial Serif Typography, Refined Spaces & Clean Micro-interactions */
 
 :root {
-  /* Warm Hodo Stays Palette */
+  /* Warm Minimalist Palette */
   --bg-app: #faf8f5;           /* Warm eggshell / stone canvas */
   --bg-surface: #ffffff;       /* Pure white card surface */
   --bg-surface-soft: #f5f2eb;  /* Warm stone surface */
@@ -92,7 +92,7 @@ h2 { font-size: 1.85rem; margin-bottom: 12px; font-weight: 500; }
 h3 { font-size: 1.35rem; margin-bottom: 10px; font-weight: 500; }
 h4 { font-size: 1.1rem; margin-bottom: 8px; font-weight: 600; font-family: var(--font-sans); }
 
-/* Minimalist Navbar (Hodo Stays Style) */
+/* Minimalist Navbar */
 header {
   background: rgba(250, 248, 245, 0.94);
   backdrop-filter: blur(12px);
@@ -225,7 +225,7 @@ main {
   padding: 0 28px;
 }
 
-/* Hero Section (Hodo Stays Style: Quiet Luxury, Editorial Feel) */
+/* Hero Section: Quiet Luxury, Editorial Feel */
 .hero-section {
   text-align: center;
   padding: 40px 20px 32px;
@@ -261,7 +261,7 @@ main {
   max-width: 620px;
 }
 
-/* Floating Search Bar (Hodo Stays Style) */
+/* Floating Search Bar */
 .search-widget-bar {
   background: #fff;
   border: 1px solid var(--border-color);
@@ -433,7 +433,7 @@ main {
   font-weight: 600;
 }
 
-/* Product Cards (Hodo Stays Room / Property Card Style) */
+/* Product Cards */
 .products-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
@@ -1089,7 +1089,7 @@ tbody tr:hover {
   transform: translateX(2px);
 }
 
-/* Product Detail Two-Column Layout (Hodo Stays Room View) */
+/* Product Detail Two-Column Layout */
 .product-detail-grid {
   display: grid;
   grid-template-columns: 1fr 1.1fr;
@@ -1143,7 +1143,7 @@ tbody tr:hover {
   color: var(--text-secondary);
 }
 
-/* Minimalist Footer (Hodo Stays Style) */
+/* Minimalist Footer */
 footer.site-footer {
   background: #fff;
   border-top: 1px solid var(--border-color);

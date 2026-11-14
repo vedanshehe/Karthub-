@@ -21,7 +21,7 @@ The database design is the architectural foundation of the project: all business
 
 ## Key Highlights & Design Decisions
 
-- **Modern Hodo Stays-Inspired UI**: Clean, warm-stone aesthetic (`#F9F6F0` palette), curated category collections, simplified navigation, responsive layout, and visual feedback for cart, checkout, seller hub, and admin management.
+- **Modern Minimalist Marketplace UI**: Clean, warm-stone aesthetic (`#F9F6F0` palette), curated category collections, simplified navigation, responsive layout, and visual feedback for cart, checkout, seller hub, and admin management.
 - **Zero-ORM Philosophy**: Every query across all 25+ API endpoints is hand-crafted parameterised SQL (`$1, $2, ...`), preventing SQL injection while maintaining complete visibility into query plans and transaction boundaries.
 - **Database-Enforced Integrity**: Invariants are guaranteed by the database engine itself. Even direct `psql` inserts or concurrent updates cannot violate business rules like negative stock, category cycles, or premature reviews.
 - **Atomic Multi-Vendor Checkout**: Checked out via the stored procedure `sp_place_order` inside a `withTx()` transaction block. Order lines lock active listings in consistent primary key order to eliminate deadlocks, verify stock, apply coupon limits, create payment records, deduct stock, and empty the user's cart atomically.
@@ -319,7 +319,7 @@ Base URL: `http://localhost:4000/api`. Detailed documentation available in **[`d
 - **Rashi Tripathi**: Seed data plan, initial README documentation, UI wireframing.
 
 ### Final Phase
-- **Yashavanth (2024A7PS0006H)**: Relational database schema architecture and normalization (12 tables), composite foreign key constraints (address ownership isolation), partial unique indexing (`uq_one_default_addr`), trigger rules (`trg_category_cycle`, `trg_review_delivered`, `trg_restore_stock`), automated database test suite (`db/tests.sql` — 57 tests), comprehensive 600+ edge case fuzzing and drain-to-empty test suite (`stress_edge_cases_600.mjs`, `edge_cases.mjs`), database error code mapping (`22001`, `23505`, `23514`), input type sanitization, and Hodo Stays UI frontend design revamp.
+- **Yashavanth (2024A7PS0006H)**: Relational database schema architecture and normalization (12 tables), composite foreign key constraints (address ownership isolation), partial unique indexing (`uq_one_default_addr`), trigger rules (`trg_category_cycle`, `trg_review_delivered`, `trg_restore_stock`), automated database test suite (`db/tests.sql` — 57 tests), comprehensive 600+ edge case fuzzing and drain-to-empty test suite (`stress_edge_cases_600.mjs`, `edge_cases.mjs`), database error code mapping (`22001`, `23505`, `23514`), input type sanitization, and responsive UI frontend design revamp.
 - **Vedansh Singh (2024A3PS0432H)**: Backend REST API architecture & service routing (auth, catalogue, cart, orders, seller hub, admin controls), atomic transaction blocks (`withTx()`), PostgreSQL stored procedures (`sp_place_order`, `sp_cancel_item`), complex analytical SQL queries (Q1–Q6 with recursive CTEs and window ranking), integration smoke testing (`smoke.mjs`), and EXPLAIN ANALYZE query plan benchmarking.
 - **Rashi Tripathi (2024A3PS0412H)**: Seed data modeling & realistic generation (`bulk_test_data.sql` with ~1,160 rows), REST API contract specification (`docs/API.md`), user persona testing, and project documentation.
 - **Prashant Kadam**: Test execution validation, manual boundary scenario testing, query performance verification, and final submission reporting.
@@ -328,4 +328,4 @@ Base URL: `http://localhost:4000/api`. Detailed documentation available in **[`d
 
 ## AI Assistance Disclosure
 
-AI tools (Claude / Google Antigravity) were utilized for assistance in boilerplate generation, test case scaffolding, and debugging. Every SQL query, constraint trigger, API endpoint, and UI component was executed, tested, and validated locally against the live PostgreSQL database engine.
+AI tools were utilized for assistance in boilerplate generation, test case scaffolding, and debugging. Every SQL query, constraint trigger, API endpoint, and UI component was executed, tested, and validated locally against the live PostgreSQL database engine.
