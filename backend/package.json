@@ -3,7 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "start": "node src/server.js", "dev": "node --watch src/server.js", "test": "node tests/smoke.mjs" },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node tests/smoke.mjs",
+    "test:edge": "node tests/edge_cases.mjs",
+    "test:stress": "node tests/stress_edge_cases_600.mjs",
+    "test:all": "node tests/smoke.mjs && node tests/edge_cases.mjs && node tests/stress_edge_cases_600.mjs"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

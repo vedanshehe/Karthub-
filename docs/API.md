@@ -22,7 +22,7 @@ Errors raised by database constraints and triggers map deterministically to HTTP
 | `23514` | 409 Conflict | Check constraint violation (e.g. negative stock, rating out of 1–5) |
 | `23503` | 409 Conflict | Foreign key constraint violation (e.g. shipping to another user's address) |
 | `P0001` | 422 Unprocessable | Trigger failure (e.g. reviewing an undelivered item) |
-| `23502` / `22P02` / `22003` | 400 Bad Request | Missing required column, malformed type, or number out of range |
+| `23502` / `22P02` / `22003` / `22001` | 400 Bad Request | Missing required column, malformed type, number out of range, or value too long |
 | Token invalid / missing | 401 Unauthorized | Login required |
 | Role mismatch | 403 Forbidden | Not allowed for user's role |
 | Record missing | 404 Not Found | Item, order, or resource not found |

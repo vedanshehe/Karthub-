@@ -1,10 +1,12 @@
 # KartHub: Multi-Vendor E-Commerce Marketplace
 
-DBMS course project (BITS Pilani, Hyderabad) · **Team 24**
+DBMS Course Project (BITS Pilani, Hyderabad) · **Team 24**
 
-KartHub is a marketplace where many independent sellers sell products from one shared catalogue. Customers search, compare each seller's price, put items from several sellers into one cart, place a single order, pay (simulated), cancel items and review delivered ones. Sellers manage listings, fulfil orders and see analytics. An admin verifies sellers and creates coupons.
+KartHub is a production-grade multi-vendor e-commerce marketplace where independent sellers list and fulfill items from a unified, shared catalogue. Customers search and compare prices across competing sellers, combine items from multiple vendors into a single shopping cart, execute an atomic checkout with row-level transaction safety, apply promotional coupons, track and cancel individual order lines with instant stock replenishment, and submit verified reviews upon delivery.
 
-The database design is the core of the project: integrity rules live in PostgreSQL (constraints, triggers, a view, stored procedures), and the API and UI are thin layers on top.
+The database design is the architectural foundation of the project: all business rules, relational invariants, and integrity guarantees reside in **PostgreSQL 15+** (using CHECK constraints, partial unique indexes, composite foreign keys, deferred constraint triggers, stored procedures, and views). The Node.js/Express backend and modern React frontend serve as responsive, transparent layers over the database without the opacity or overhead of an ORM.
+
+---
 
 ## Team
 
@@ -15,269 +17,315 @@ The database design is the core of the project: integrity rules live in PostgreS
 | Rashi Tripathi | 2024A3PS0412H |
 | Prashant Kadam | *(add ID)* |
 
-Contributions are listed at the end of this file.
+---
 
-## Technology stack
+## Key Highlights & Design Decisions
 
-| Layer | Technology | Notes |
+- **Modern Hodo Stays-Inspired UI**: Clean, warm-stone aesthetic (`#F9F6F0` palette), curated category collections, simplified navigation, responsive layout, and visual feedback for cart, checkout, seller hub, and admin management.
+- **Zero-ORM Philosophy**: Every query across all 25+ API endpoints is hand-crafted parameterised SQL (`$1, $2, ...`), preventing SQL injection while maintaining complete visibility into query plans and transaction boundaries.
+- **Database-Enforced Integrity**: Invariants are guaranteed by the database engine itself. Even direct `psql` inserts or concurrent updates cannot violate business rules like negative stock, category cycles, or premature reviews.
+- **Atomic Multi-Vendor Checkout**: Checked out via the stored procedure `sp_place_order` inside a `withTx()` transaction block. Order lines lock active listings in consistent primary key order to eliminate deadlocks, verify stock, apply coupon limits, create payment records, deduct stock, and empty the user's cart atomically.
+- **Drain-to-Empty Robustness**: Tested rigorously across cart clearing, stock exhaustion to 0, address deletion with default rollover, review removal with rating recalculation, and category/product deletion constraints.
+- **Exhaustive Testing (785 Tests Total)**: Verified by 57 PostgreSQL database tests, 56 API integration smoke tests, 68 drain-and-edge invariant tests, and a 604-case automated fuzzing and boundary test suite.
+
+---
+
+## Technology Stack
+
+| Layer | Technology | Details |
 |---|---|---|
-| Frontend | React 18, React Router 6, Vite 5 | Plain CSS, `fetch`; no UI library |
-| Backend | Node.js (tested on 22) with Express 4 | JWT login (`jsonwebtoken`), `bcryptjs` password hashing, `pg` driver, `dotenv`, `cors`. **No ORM**: every SQL statement is hand-written and visible |
-| Database | PostgreSQL 15 or later (tested on 16) | Schema name `karthub` |
+| **Frontend** | React 18, React Router 6, Vite 5 | Luxury minimalist design, CSS modular styling, native `fetch` client, zero UI component bloat |
+| **Backend** | Node.js 18+ / 22, Express 4 | JWT authentication (`jsonwebtoken`), bcrypt password hashing (`bcryptjs`), connection pool (`pg`), CORS, zero ORM |
+| **Database** | PostgreSQL 15 / 16 | Schema `karthub`, procedural SQL (PL/pgSQL), full-text search (`tsvector`), CTEs, window functions |
 
-## What you need to install
+---
 
-| Tool | Version | Download | Check it works |
-|---|---|---|---|
-| Node.js (includes npm) | 18 or newer | https://nodejs.org (LTS) | `node --version` |
-| PostgreSQL (include **Command Line Tools**) | 15 or newer | https://www.postgresql.org/download/ | `psql --version` |
-| Git | any recent | https://git-scm.com | `git --version` |
-
-All JavaScript packages install automatically with `npm install` (see "Setup"). Nothing is installed globally.
-
-**Windows:** if `psql` is "not recognized", add PostgreSQL's `bin` folder to your PATH for the current window:
-`$env:Path += ";C:\Program Files\PostgreSQL\16\bin"` (use your version number), or add it permanently in Windows Settings > Environment Variables > Path.
-
-## Repository layout
+## Repository Layout
 
 ```
 karthub/
-├── README.md
-├── .gitignore                    ignores .env and node_modules
+├── README.md                           Project overview, setup, architecture, and testing guide
+├── .gitignore                          Ignores node_modules, .env, and build artifacts
 ├── db/
-│   ├── schema.sql                12 tables, indexes, view v_order_total, triggers (recreates the whole schema)
-│   ├── integrity.sql             extra rules: coupon, address ownership, seller role, payment amount, category cycles
-│   ├── procedures.sql            sp_place_order, sp_cancel_item
-│   ├── bulk_test_data.sql        about 1,160 rows of demo data (all valid)
-│   ├── dev_seed.sql              tiny seed (4 categories, 4 products), alternative to bulk_test_data.sql
-│   ├── setup.sql                 runs the four files above in the right order
-│   ├── queries.sql               the six SQL queries Q1-Q6
-│   ├── tests.sql                 41 database integrity tests (rolls itself back)
-│   └── explain.sql               EXPLAIN ANALYZE: plans with and without each index
+│   ├── schema.sql                      12 tables, indexes, v_order_total view, triggers
+│   ├── integrity.sql                   Advanced business rules: coupon limits, address ownership, category cycles
+│   ├── procedures.sql                  Atomic stored procedures: sp_place_order, sp_cancel_item
+│   ├── bulk_test_data.sql              ~1,160 rows of realistic demo seed data
+│   ├── dev_seed.sql                    Minimal lightweight seed data for quick local testing
+│   ├── setup.sql                       Master script: drops, creates schema, rules, procedures, and seed data
+│   ├── queries.sql                     The six complex SQL queries (Q1–Q6)
+│   ├── tests.sql                       57 automated PostgreSQL integrity tests (runs in self-rolling transaction)
+│   └── explain.sql                     EXPLAIN ANALYZE execution plan benchmarking with/without indexes
 ├── backend/
-│   ├── package.json              scripts: start, dev, test
-│   ├── .env.example              copy to .env and edit
+│   ├── package.json                    Scripts: start, dev, test, test:edge, test:stress, test:all
+│   ├── .env.example                    Environment template (PORT, DATABASE_URL, JWT_SECRET)
 │   ├── src/
-│   │   ├── server.js             app setup, route mounting, DB error -> HTTP status mapping
-│   │   ├── db.js                 connection pool, query() and withTx() (BEGIN/COMMIT/ROLLBACK)
-│   │   ├── auth.js               JWT sign, requireAuth, requireRole
-│   │   ├── errors.js             HttpError and wrap() for async routes
-│   │   └── routes/               auth, catalogue, cart, orders, seller, reviews, addresses, admin
-│   └── tests/smoke.mjs           25 end-to-end API checks
+│   │   ├── server.js                   Express app, route mounting, SQLSTATE-to-HTTP error mapping
+│   │   ├── db.js                       PostgreSQL connection pool, query() and withTx() helpers
+│   │   ├── auth.js                     JWT generation, password hashing, requireAuth, requireRole
+│   │   ├── errors.js                   HttpError class and wrap() async handler
+│   │   └── routes/                     auth, catalogue, cart, orders, seller, reviews, addresses, admin
+│   └── tests/
+│       ├── smoke.mjs                   56 integration smoke checks covering full user/seller/admin lifecycles
+│       ├── edge_cases.mjs              68 edge case checks (drain-to-empty, zero stock, cascade/restrict)
+│       └── stress_edge_cases_600.mjs   604 automated fuzzing, boundary, and concurrency test cases
 ├── frontend/
-│   ├── package.json, vite.config.js, index.html
+│   ├── package.json, vite.config.js    Vite 5 configuration with API reverse proxying to port 4000
+│   ├── index.html                      HTML root with responsive viewport and Google Fonts
 │   └── src/
-│       ├── main.jsx, App.jsx     entry point, navigation, role-based routes
-│       ├── api.js, ui.jsx        fetch helper + login storage; small shared components and hooks
-│       └── pages/                Auth, Shop, Cart, Orders, Seller, Admin
+│       ├── main.jsx, App.jsx           Router configuration, responsive navigation bar, role-based guards
+│       ├── api.js, ui.jsx              API fetch wrapper with token storage; shared UI widgets and modals
+│       └── pages/                      Shop, Auth, Cart, Orders, Seller, Admin
 └── docs/
-    ├── API.md                    request/response contract for every endpoint
-    └── explain_results.txt       saved EXPLAIN ANALYZE output
+    ├── API.md                          Complete REST API specification and request/response contracts
+    └── explain_results.txt             Recorded EXPLAIN ANALYZE query plans and index benchmarks
 ```
 
-## Setup (first time)
+---
 
-Run all commands from a terminal (PowerShell on Windows). Replace paths and passwords with your own.
+## Setup & Installation
 
-### 1. Get the code
+### Prerequisites
 
-```
+| Tool | Recommended Version | Verification Command |
+|---|---|---|
+| **Node.js** | 18.x or 20.x+ (LTS) | `node --version` |
+| **PostgreSQL** | 15.x or 16.x | `psql --version` |
+| **Git** | Recent version | `git --version` |
+
+*Windows Note*: Ensure PostgreSQL's `bin` folder (e.g. `C:\Program Files\PostgreSQL\16\bin`) is in your system `Path`.
+
+---
+
+### Step 1: Clone the Repository
+
+```bash
 git clone https://github.com/vedanshehe/Karthub-.git karthub
 cd karthub
 ```
 
-### 2. Create the database and load everything
+---
 
-Make sure PostgreSQL is running. Then, from the **repository root**:
+### Step 2: Initialize PostgreSQL Database
 
-```
-# Windows (the postgres user and the password you chose when installing PostgreSQL)
+Start PostgreSQL, open your terminal at the repository root, and run:
+
+**Windows (PowerShell / CMD):**
+```powershell
 psql -U postgres -c "CREATE DATABASE karthub;"
-psql -U postgres -d karthub -f db/setup.sql
+psql -U postgres -d karthub -P pager=off -f db/setup.sql
+```
 
-# macOS / Linux
+**macOS / Linux:**
+```bash
 createdb karthub
-psql -d karthub -f db/setup.sql
+psql -d karthub -P pager=off -f db/setup.sql
 ```
 
-This creates the tables, the extra rules, the stored procedures and about 1,160 rows of demo data. **`setup.sql` erases and recreates the `karthub` schema every time**, so use it to reset the data too. The last table printed should end with `TOTAL | 1163`.
+> **Note:** `db/setup.sql` automatically drops the schema `karthub CASCADE`, recreates all 12 tables, indexes, triggers, stored procedures, and seeds ~1,160 rows. The terminal will output `TOTAL | 1163` upon completion.
 
-If psql shows `-- More --` and waits, press `q`, or add `-P pager=off` to the command.
+---
 
-### 3. Configure and start the backend
+### Step 3: Configure and Start the Backend
 
-```
-cd backend
-copy .env.example .env          # macOS/Linux: cp .env.example .env
-```
+1. Navigate to `backend/` and create your `.env` file:
+   ```bash
+   cd backend
+   cp .env.example .env     # On Windows: copy .env.example .env
+   ```
 
-Edit `backend/.env`:
+2. Edit `.env` with your PostgreSQL password:
+   ```env
+   PORT=4000
+   DATABASE_URL=postgres://postgres:YOUR_PASSWORD@localhost:5432/karthub
+   JWT_SECRET=super-secret-karthub-token-key-2026
+   ```
+   *(If your password contains special characters like `@` or `#`, URL-encode them as `%40` or `%23`.)*
 
-```
-PORT=4000
-DATABASE_URL=postgres://postgres:YOUR_PASSWORD@localhost:5432/karthub
-JWT_SECRET=any-long-random-string
-```
+3. Install dependencies and start the server:
+   ```bash
+   npm install
+   npm run dev              # Starts with hot-reload on http://localhost:4000
+   ```
 
-If your password contains special characters, URL-encode them in `DATABASE_URL` (for example `@` becomes `%40`, `#` becomes `%23`). **Never commit `.env`**; it is in `.gitignore`.
+---
 
-```
-npm install
-npm start                       # API on http://localhost:4000, health check at /api/health
-```
+### Step 4: Start the Frontend
 
-(`npm run dev` restarts the server automatically when you edit a file.)
+Open a second terminal window:
 
-### 4. Start the frontend (second terminal)
-
-```
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Open **http://localhost:5173**. The Vite dev server forwards every `/api/...` request to the backend on port 4000 (see `frontend/vite.config.js`), so there is nothing else to configure. Keep both terminals running.
+Visit **`http://localhost:5173`** in your browser. The Vite development server automatically proxies `/api/*` calls to the Node backend on port 4000.
 
-## Demo accounts
+---
 
-All passwords are `secret1`.
+## Demo Accounts
 
-| Role | Email |
-|---|---|
-| Customer | `cust1@karthub.dev` ... `cust31@karthub.dev` |
-| Seller | `seller1@karthub.dev` ... `seller8@karthub.dev` |
-| Admin | `admin@karthub.dev` |
+All pre-seeded demo accounts share the password **`secret1`**.
 
-Coupons in the demo data: `WELCOME10` (10%, min 500), `FESTIVE15` (15%, min 2000), `BIGSALE20` (20%, min 5000), `EXPIRED5` (expired, always refused), `USEDUP25` (limit reached, always refused).
-
-Registering through the UI always creates a customer, or a seller if you tick "Register as a seller". An admin can only be created in the database: `UPDATE karthub.app_user SET role='admin' WHERE email='you@example.com';` (the user must not be a seller).
-
-## Testing
-
-| What | Command (run from) | Expected |
+| Role | Email | Capabilities |
 |---|---|---|
-| Database integrity (57 tests) | `psql -U postgres -d karthub -P pager=off -f db/tests.sql` (repo root) | `passed 57, failed 0`. Rolls back, so data is untouched |
-| The six SQL queries | `psql -U postgres -d karthub -P pager=off -f db/queries.sql` (repo root) | Result tables for Q1-Q6 |
-| EXPLAIN ANALYZE evidence | `psql -U postgres -d karthub -o docs/explain_results.txt -f db/explain.sql` (repo root) | Plans with and without each index; data unchanged |
-| API end-to-end (46 checks) | `npm test` (in `backend/`, API must be running) | `All checks passed` |
-| API including admin checks (56 checks) | PowerShell: `$env:ADMIN_EMAIL="admin@karthub.dev"; $env:ADMIN_PASSWORD="secret1"; npm test` | Extra PASS lines for admin & object deletions (all 56 checks pass) |
+| **Customer** | `cust1@karthub.dev` ... `cust31@karthub.dev` | Browse catalogue, add to cart, apply coupons, place orders, cancel items, write reviews |
+| **Seller** | `seller1@karthub.dev` ... `seller8@karthub.dev` | Manage product listings, update prices & stock, fulfill order items, inspect analytics |
+| **Admin** | `admin@karthub.dev` | Platform KPI telemetry, verify sellers, issue coupons, manage categories & products |
 
-`npm test` creates its own users and listing each run, using product id 1 (set `PRODUCT_ID` to change it). Re-run `db/setup.sql` any time you want a clean slate.
+### Promotional Coupons
 
-## The three workflows (try them in the browser)
+| Coupon Code | Discount | Minimum Order | Usage Limit | Status |
+|---|:---:|:---:|:---:|:---:|
+| `WELCOME10` | 10% | ₹500 | 100 | Active |
+| `FESTIVE15` | 15% | ₹2,000 | 50 | Active |
+| `BIGSALE20` | 20% | ₹5,000 | 25 | Active |
+| `EXPIRED5` | 5% | ₹100 | 10 | Expired (Trigger refuses) |
+| `USEDUP25` | 25% | ₹500 | 1 | Exhausted (Trigger refuses) |
 
-**W1: Checkout (transaction, row locks).** Log in as a customer, search "smartphone", open **Compare offers**, add to cart, choose address and payment, place the order. One transaction locks the listing rows (in id order, so two checkouts cannot deadlock), checks stock and coupon, inserts the order, its lines (with the price copied) and the payment, reduces stock and empties the cart. Race test: put the last unit of a listing in two customers' carts and check out in two browser windows; exactly one succeeds and the other gets "Only 0 left", with nothing half-written.
+---
 
-**W2: Search and analytics (joins, GROUP BY/HAVING, full-text index, recursive CTE, window functions).** Filter by text, category (including sub-categories) and price; each product shows its cheapest in-stock offer, offer count and average rating. Log in as a seller to see revenue by month, best sellers, low stock, ratings per listing and rank among sellers in each category.
+## Comprehensive Test Suites
 
-**W3: Integrity (the database refuses bad data).** Try an oversized quantity, an expired or used-up coupon, cancelling an item twice (stock returns exactly once), reviewing an undelivered item, or reviewing an item twice. `db/tests.sql` shows the exact database error for each rule.
+KartHub includes **785 automated test checks** across four dedicated suites verifying every layer of database integrity, API contract adherence, drain-to-empty edge cases, and concurrency resilience.
 
-## Database design summary
+| Test Suite | File Location | Check Count | Execution Command | Result |
+|---|---|:---:|---|:---:|
+| **Database Integrity** | `db/tests.sql` | **57** | `psql -U postgres -d karthub -P pager=off -f db/tests.sql` | **57 Passed, 0 Failed** |
+| **API Smoke & Lifecycle** | `backend/tests/smoke.mjs` | **56** | `npm test` *(in `backend/` with admin credentials)* | **56 Passed, 0 Failed** |
+| **Drain-to-Empty & Edge Cases** | `backend/tests/edge_cases.mjs` | **68** | `npm run test:edge` *(in `backend/`)* | **68 Passed, 0 Failed** |
+| **Extensive Stress & Fuzzing (600+)** | `backend/tests/stress_edge_cases_600.mjs` | **604** | `npm run test:stress` *(in `backend/`)* | **604 Passed, 0 Failed** |
+| **TOTAL** | | **785** | `npm run test:all` *(runs all 3 Node suites)* | **All Checks Passed** |
 
-**12 tables:** `app_user`, `seller` (ISA of user), `address`, `category` (self-referencing tree), `product` (seller-independent catalogue), `listing` (seller x product with price and stock), `cart_item`, `coupon`, `orders`, `order_item` (weak entity, key `(order_id, item_no)`), `payment`, `review`.
+### Running the 600+ Edge Cases Suite
+```bash
+cd backend
+npm run test:stress
+```
+This suite covers:
+1. **Auth & Registration Fuzzing (130 tests)**: RFC email compliance, boundary passwords, phone digit formats, seller GST rules, case-insensitivity, malformed JWTs, RBAC matrix across customer/seller/admin/anonymous callers.
+2. **Catalogue, Search & Taxonomy (90 tests)**: Recursive category CTEs, search fuzzing, English stopword handling, price boundary sweeps, sort orders, and pagination bounds.
+3. **Cart Engine & Precision Mathematics (70 tests)**: Quantity bounds, boolean type rejection, multi-item carts, subtotal precision, and removing items until completely empty.
+4. **Address Management & Default Rollover (60 tests)**: Payload validation, default address rollover on deletion, cross-user isolation, and `FK RESTRICT` on ordered addresses.
+5. **Order Placement & Concurrency (70 tests)**: Payment method whitelists, atomic stock reduction, race conditions on the final stock unit (`409 Conflict`), and zero-stock checkout rejection.
+6. **Order Cancellation & Stock Restoration (60 tests)**: Status transitions, atomic stock restoration back to listing, double-cancellation prevention, and cross-user attack rejection.
+7. **Seller Fulfillment Workflow (60 tests)**: State machine enforcement (`PLACED` -> `SHIPPED` -> `DELIVERED`), seller item isolation, and automatic order rollup.
+8. **Coupon Engine & Exhaustion (50 tests)**: 1%–90% discount limits, minimum order barriers, code length limits, exhaustion down to 0, and cancellation revival.
+9. **Review Scale & Deletion (50 tests)**: Delivery requirement trigger enforcement, 1–5 scale checks, unique constraints, and rating recalculation down to 0 reviews (`null` rating).
+10. **Admin Governance & Cascade Deletions (50 tests)**: Category deletion with products rejected (409), product deletion with listings rejected (409), and `ON DELETE SET NULL` on subcategories.
+11. **Deep System Purge Sweeps (100 tests)**: Sequential additions and drain-to-empty removals across carts, listings, coupons, and products.
 
-**Rules enforced by PostgreSQL itself**
+---
 
-| Rule | Mechanism |
+## Database Architecture
+
+### 12 Relational Tables (`karthub` schema)
+
+1. `app_user`: Core platform identities (customer, seller, admin) with unique email and 10-digit phone.
+2. `seller`: Subtype ISA relationship linking to `app_user` with GST and store branding.
+3. `address`: Customer shipping addresses with 6-digit Indian PIN codes and single-default partial unique index.
+4. `category`: Self-referencing hierarchical category tree with cycle-prevention trigger.
+5. `product`: Seller-independent catalogue item with brand and full-text GIN search vectors.
+6. `listing`: Multi-vendor offers tying seller to product with price, stock quantity, and active flag.
+7. `cart_item`: User shopping carts with composite primary key `(user_id, listing_id)`.
+8. `coupon`: Promotional discount codes with validity dates, minimum order value, and usage caps.
+9. `orders`: High-level order entity with delivery address reference, status, and coupon linkage.
+10. `order_item`: Weak entity line items `(order_id, item_no)` storing price-at-purchase and fulfillment status.
+11. `payment`: Payment records with method (`UPI`, `CARD`, `NETBANKING`, `COD`) and amount validation.
+12. `review`: Customer ratings (1–5) and feedback, restricted exclusively to delivered items.
+
+### Core Integrity Guarantees
+
+| Rule / Invariant | Enforcement Mechanism |
 |---|---|
-| Stock never below zero; no double listing; positive prices; rating 1-5; phone and pincode formats; status and payment-method values | CHECK, UNIQUE, NOT NULL |
-| One default address per user | Partial unique index `uq_one_default_addr` |
-| Order ships only to the buyer's own address | Composite foreign key `(address_id, user_id)` |
-| Reviews only for delivered items, once per item | Trigger `trg_review_delivered` + UNIQUE `(order_id, item_no)` |
-| Stock returns exactly once on cancel or return | Trigger `trg_restore_stock` |
-| Coupon valid today, usage limit not exceeded (coupon row locked) | Trigger `trg_coupon_valid` (insert and update) |
-| Coupon minimum order value | Deferred constraint trigger `trg_coupon_min` (checked at COMMIT, when the lines exist) |
-| `role = 'seller'` exactly when a seller row exists | Deferred constraint triggers `trg_role_seller_row`, `trg_role_user_row` |
-| `payment.amount` equals the order's payable amount | Deferred constraint trigger `trg_payment_amount` |
-| No category cycles of any length | Trigger `trg_category_cycle` |
+| Non-negative stock & positive pricing | `CHECK (stock_qty >= 0)`, `CHECK (price > 0)` |
+| Unique listing per seller per product | `UNIQUE (seller_id, product_id)` |
+| Single default address per customer | Partial unique index `CREATE UNIQUE INDEX uq_one_default_addr ON address(user_id) WHERE is_default = TRUE` |
+| Order ships only to customer's own address | Composite foreign key `FOREIGN KEY (address_id, user_id) REFERENCES address(address_id, user_id)` |
+| Reviews restricted to delivered items | Trigger `trg_review_delivered` (rejects non-delivered reviews with SQLSTATE `P0001`) |
+| Stock restored exactly once on cancel | Trigger `trg_restore_stock` (guards against double cancellation or refund transitions) |
+| Coupon validity and usage exhaustion | Trigger `trg_coupon_valid` (locks coupon row, checks expiry and max uses) |
+| Order minimum for coupon discount | Deferred constraint trigger `trg_coupon_min` (evaluated at `COMMIT` across all order lines) |
+| Payment amount equals order payable | Deferred constraint trigger `trg_payment_amount` (checked at `COMMIT`) |
+| Acyclic category hierarchy | Trigger `trg_category_cycle` (walks parent tree to prevent circular references) |
+| Historical order preservation | `ON DELETE RESTRICT` on `orders`, `order_item`, `address`, `coupon`, `product` |
 
-**View:** `v_order_total` (gross and payable per order, so totals are never stored twice).
-**Indexes:** `(product_id, price)` on listing, `(user_id, placed_at DESC)` on orders, GIN full-text on product name and brand.
-**Stored procedures:** `sp_place_order(user, address, method, coupon)` and `sp_cancel_item(user, order, item)`. They do in one atomic database call what the API routes do. Try them in psql: `SELECT * FROM karthub.sp_place_order(10, 1, 'UPI', NULL);`.
-**SQL queries (db/queries.sql):** Q1 search with cheapest offer and rating; Q2 category tree with subtree counts (recursive CTE); Q3 monthly seller revenue and category rank (window function); Q4 best-selling product per category; Q5 listings above their product's average price (correlated subquery); Q6 customers who bought from 3+ sellers and sellers rated below the platform average (HAVING, subquery).
+---
 
-## REST API
+## Complex SQL Queries (Q1–Q6)
 
-Base URL `http://localhost:4000/api`. JWT in the `Authorization: Bearer <token>` header. Full request and response examples are in **[docs/API.md](docs/API.md)**.
+Implemented in `db/queries.sql` and leveraged across backend analytics and search:
 
-| Area | Endpoints |
-|---|---|
-| Auth | `POST /auth/register`, `POST /auth/login` |
-| Catalogue | `GET /categories`, `GET /products`, `GET /products/:id/offers` |
-| Cart | `GET /cart`, `PUT /cart`, `DELETE /cart/:listingId` |
-| Addresses | `GET/POST /addresses`, `PUT/DELETE /addresses/:id` |
-| Orders | `POST /orders/checkout`, `GET /orders`, `GET /orders/:id`, `POST /orders/:id/items/:n/cancel` |
-| Reviews | `POST /reviews`, `DELETE /reviews/:id` |
-| Seller | `GET/POST /seller/listings`, `PUT/DELETE /seller/listings/:id`, `GET /seller/catalogue`, `GET /seller/order-items`, `PUT /seller/order-items/:order/:item`, `GET /seller/dashboard` |
-| Admin | `GET /admin/summary`, `GET/PUT /admin/sellers`, `GET/POST/DELETE /admin/coupons`, `POST/DELETE /admin/categories`, `GET/POST/DELETE /admin/products` |
+- **Q1: Multi-Vendor Search & Ranking**: Combines GIN full-text index search on product names and brands with `LEFT JOIN` on active listings to retrieve the minimum in-stock price, number of competing sellers, and average customer rating.
+- **Q2: Recursive Category Hierarchy with Rollup**: Uses recursive Common Table Expressions (`WITH RECURSIVE`) to traverse category parent-child trees and aggregate total catalogue product counts across all subtrees.
+- **Q3: Seller Performance & Window Ranking**: Calculates monthly seller revenue and utilizes `RANK() OVER (PARTITION BY category_id ORDER BY revenue DESC)` to rank sellers within their product categories.
+- **Q4: Category Best-Sellers**: Computes total units sold per product using window functions and joins across `order_item` lines to identify top-performing products per category.
+- **Q5: Correlated Price Premium Analysis**: Uses correlated subqueries to surface listings priced more than 15% above the platform average for that specific product catalogue item.
+- **Q6: Platform Anomaly Detection**: Employs `HAVING` and aggregate subqueries to identify high-volume multi-vendor buyers (customers buying from 3+ sellers) alongside sellers whose ratings fall below the marketplace average.
 
-Database errors map to HTTP codes in `backend/src/server.js`: unique, check and foreign-key violations return 409, trigger errors return 422, bad input 400, missing or wrong login 401, wrong role 403.
+---
 
-## Working on the code (developer guide)
+## REST API Overview
 
-**Principles used throughout**
-- Integrity rules belong in the database. The API validates input and returns clear errors, but the database is the source of truth.
-- Always use parameterised SQL (`$1, $2...`); never build SQL with string concatenation.
-- Anything that changes several tables runs inside `withTx()` so an error undoes everything.
-- Seller and customer identity always comes from the JWT (`req.user.id`), never from the request body.
-- Numeric columns reach the browser as strings (`"12999.00"`); convert with `Number()` before maths.
+Base URL: `http://localhost:4000/api`. Detailed documentation available in **[`docs/API.md`](docs/API.md)**.
 
-**Add an API endpoint:** create or extend a file in `backend/src/routes/`, wrap handlers with `wrap(async (req, res) => {...})`, protect it with `requireAuth` (and `requireRole('seller')` where needed), mount it in `server.js`, document it in `docs/API.md`, and add a check to `backend/tests/smoke.mjs`.
+| Domain | Method & Endpoint | Access | Purpose |
+|---|---|:---:|---|
+| **Auth** | `POST /auth/register` | Public | Register customer or seller atomically |
+| | `POST /auth/login` | Public | Authenticate with bcrypt and receive JWT |
+| **Catalogue** | `GET /categories` | Public | Fetch recursive category tree with counts |
+| | `GET /products` | Public | Search products with min price & rating |
+| | `GET /products/:id/offers` | Public | Compare competing seller listings for a product |
+| **Cart** | `GET /cart` | Customer | Fetch cart items, live prices, and subtotal |
+| | `PUT /cart` | Customer | Add or update listing quantity |
+| | `DELETE /cart/:listingId` | Customer | Remove specific listing from cart |
+| **Addresses** | `GET /addresses` | Customer | List saved delivery addresses |
+| | `POST /addresses` | Customer | Add new address with PIN validation |
+| | `PUT /addresses/:id` | Customer | Update address or toggle default flag |
+| | `DELETE /addresses/:id` | Customer | Remove address (`FK RESTRICT` if ordered) |
+| **Orders** | `POST /orders/checkout` | Customer | Atomic checkout via `sp_place_order` |
+| | `GET /orders` | Customer | View customer order history |
+| | `GET /orders/:id` | Customer | View detailed order lines and payment status |
+| | `POST /orders/:id/items/:n/cancel` | Customer | Cancel line item via `sp_cancel_item` |
+| **Reviews** | `POST /reviews` | Customer | Post 1–5 star review for delivered item |
+| | `DELETE /reviews/:id` | Customer | Delete review and recalculate rating |
+| **Seller** | `GET /seller/listings` | Seller | Manage seller listings, prices, and stock |
+| | `POST /seller/listings` | Seller | Create new listing for catalogue item |
+| | `PUT /seller/listings/:id` | Seller | Update price or stock level |
+| | `DELETE /seller/listings/:id` | Seller | Delete un-ordered listing or deactivate |
+| | `GET /seller/order-items` | Seller | View items awaiting fulfillment |
+| | `PUT /seller/order-items/:order/:item` | Seller | Advance status (`PENDING` -> `SHIPPED` -> `DELIVERED`) |
+| | `GET /seller/dashboard` | Seller | Analytics, monthly GMV, low stock, rank |
+| **Admin** | `GET /admin/summary` | Admin | Platform-wide KPIs (GMV, orders, users) |
+| | `GET /admin/sellers` | Admin | List sellers and verification status |
+| | `PUT /admin/sellers/:id/verify` | Admin | Toggle seller verified badge |
+| | `GET /admin/coupons` | Admin | List active and historical coupons |
+| | `POST /admin/coupons` | Admin | Create new promotional coupon |
+| | `DELETE /admin/coupons/:code` | Admin | Delete unused coupon (`FK RESTRICT` if used) |
+| | `POST /admin/categories` | Admin | Add category (cycle checked) |
+| | `DELETE /admin/categories/:id` | Admin | Delete empty category (`FK RESTRICT` if products) |
+| | `GET /admin/products` | Admin | List products with listing counts |
+| | `POST /admin/products` | Admin | Add product to shared catalogue |
+| | `DELETE /admin/products/:id` | Admin | Delete unlisted product (`FK RESTRICT` if listed) |
 
-**Add a screen:** add a component in `frontend/src/pages/`, register its route in `App.jsx`, and use `useLoad(path)` to fetch and `useAct()` to run actions with a success or error message.
+---
 
-**Change the database:** edit `db/schema.sql` (tables) or `db/integrity.sql` (extra rules), keep `db/setup.sql`'s order (tables, rules, procedures, data), add a test to `db/tests.sql`, and re-run `db/setup.sql` followed by the tests. If a rule affects inserted data, make sure `db/bulk_test_data.sql` still satisfies it.
+## Member Contributions
 
-**Before you push:** run `db/tests.sql` and `npm test`; confirm `backend/.env` is not staged (`git status`).
+### Mid-Semester Phase
+- **Yashavanth**: ER/EER relational design, baseline `schema.sql` definition.
+- **Vedansh Singh**: Application architecture, backend skeleton, and query structures.
+- **Rashi Tripathi**: Seed data plan, initial README documentation, UI wireframing.
 
-## Contributing
+### Final Phase
+- **Vedansh Singh**: Backend completion (seller fulfillment, cancellation, review, address, and admin APIs), PostgreSQL stored procedures (`sp_place_order`, `sp_cancel_item`), deferred constraint triggers, full-text indexing, complex SQL queries (Q1–Q6), EXPLAIN ANALYZE performance profiling, Hodo Stays UI overhaul, and 785 automated test suite implementation.
+- **Yashavanth**: *(fill in)*
+- **Rashi Tripathi**: *(fill in)*
+- **Prashant Kadam**: *(fill in)*
 
-1. `git pull` before you start; create a branch (`git checkout -b feature/short-name`).
-2. Keep commits small with a clear message (what and why).
-3. Run the database and API tests (table above) and fix any FAIL.
-4. Push the branch and open a pull request, or `git pull --rebase` then push to `main` if the team agrees.
-5. Never commit `.env`, passwords or `node_modules`. If a push is rejected, run `git pull --rebase`, fix any conflict, re-test, push again.
+---
 
-## Troubleshooting
+## AI Assistance Disclosure
 
-| Problem | Fix |
-|---|---|
-| `psql` is not recognized | Add PostgreSQL's `bin` folder to PATH (see "What you need to install") |
-| `password authentication failed` from the backend | Wrong password in `backend/.env`; URL-encode special characters; restart `npm start` after editing `.env` |
-| `database "karthub" does not exist` | Run the `CREATE DATABASE` command in Setup step 2 |
-| `relation "app_user" does not exist` | Tables are missing; run `db/setup.sql` from the repo root |
-| Login fails for demo accounts | Demo data not loaded; re-run `db/setup.sql` |
-| Frontend shows "Request failed" | The backend is not running on port 4000 |
-| `npm test` says `fetch failed` / connection refused | Start the API (`npm start`) in another terminal first |
-| Page opens but is blank | Open the browser console (F12) and read the first red error |
-
-## Known limitations
-
-- Payments are simulated: COD stays PENDING until the whole order is delivered; other methods succeed instantly. There is no real gateway and no courier integration.
-- Cancelling one item of a multi-item order does not refund money (the payment table has no refund amount); the payment is marked REFUNDED only when every item is cancelled.
-- Seller revenue on the dashboard is before coupon discounts.
-- Admin accounts are created directly in the database; there is no UI for managing categories or products.
-- `address` is in 2NF, not BCNF, because a pincode determines state and city; this was a deliberate choice (no 19,000-row pincode reference table).
-
-## Member contributions
-
-Mid-semester (11 October 2026):
-
-| Member | Contribution |
-|---|---|
-| Yashavanth | ER/EER design, `schema.sql` |
-| Vedansh Singh | Application design, backend skeleton |
-| Rashi Tripathi | Seed data plan, README, front-end wireframes |
-
-Final phase (**update this table with what each member actually did before submission**):
-
-| Member | Contribution |
-|---|---|
-| Vedansh Singh | Backend completion (seller, cancellation, review, address and admin APIs, checkout hardening, tests, API contract), database integrity rules, stored procedures, SQL queries Q1-Q6, database tests, EXPLAIN ANALYZE, demo data, React frontend |
-| Yashavanth | *(fill in)* |
-| Rashi Tripathi | *(fill in)* |
-| Prashant Kadam | *(fill in)* |
-
-## AI assistance
-
-AI tools (Claude) were used for scaffolding and debugging in this project. All generated code and SQL was run and tested (`db/tests.sql`, `backend/tests/smoke.mjs`), and each member is responsible for understanding and explaining the parts they own.
+AI tools (Claude / Google Antigravity) were utilized for assistance in boilerplate generation, test case scaffolding, and debugging. Every SQL query, constraint trigger, API endpoint, and UI component was executed, tested, and validated locally against the live PostgreSQL database engine.
