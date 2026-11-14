@@ -319,10 +319,10 @@ Base URL: `http://localhost:4000/api`. Detailed documentation available in **[`d
 - **Rashi Tripathi**: Seed data plan, initial README documentation, UI wireframing.
 
 ### Final Phase
-- **Vedansh Singh**: Backend completion (seller fulfillment, cancellation, review, address, and admin APIs), PostgreSQL stored procedures (`sp_place_order`, `sp_cancel_item`), deferred constraint triggers, full-text indexing, complex SQL queries (Q1–Q6), EXPLAIN ANALYZE performance profiling, Hodo Stays UI overhaul, and 785 automated test suite implementation.
-- **Yashavanth**: *(fill in)*
-- **Rashi Tripathi**: *(fill in)*
-- **Prashant Kadam**: *(fill in)*
+- **Yashavanth (2024A7PS0006H)**: Relational database schema architecture and normalization (12 tables), composite foreign key constraints (address ownership isolation), partial unique indexing (`uq_one_default_addr`), trigger rules (`trg_category_cycle`, `trg_review_delivered`, `trg_restore_stock`), automated database test suite (`db/tests.sql` — 57 tests), comprehensive 600+ edge case fuzzing and drain-to-empty test suite (`stress_edge_cases_600.mjs`, `edge_cases.mjs`), database error code mapping (`22001`, `23505`, `23514`), input type sanitization, and Hodo Stays UI frontend design revamp.
+- **Vedansh Singh (2024A3PS0432H)**: Backend REST API architecture & service routing (auth, catalogue, cart, orders, seller hub, admin controls), atomic transaction blocks (`withTx()`), PostgreSQL stored procedures (`sp_place_order`, `sp_cancel_item`), complex analytical SQL queries (Q1–Q6 with recursive CTEs and window ranking), integration smoke testing (`smoke.mjs`), and EXPLAIN ANALYZE query plan benchmarking.
+- **Rashi Tripathi (2024A3PS0412H)**: Seed data modeling & realistic generation (`bulk_test_data.sql` with ~1,160 rows), REST API contract specification (`docs/API.md`), user persona testing, and project documentation.
+- **Prashant Kadam**: Test execution validation, manual boundary scenario testing, query performance verification, and final submission reporting.
 
 ---
 
